@@ -1,0 +1,4 @@
+{
+  "_note": "Real response from devnet /api/odds/snapshot/18222446: empty array. This endpoint only serves a live in-play cache window and returns [] once a fixture is over; use /odds/updates/{fixtureId} for the full historical odds log instead (see odds_updates.json).",
+  "records": []
+}

@@ -1,0 +1,12 @@
+.claude/
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+*.log
+.env
+.env.local
+target/
+scripts/vendor/recon-wallet.json
+scripts/vendor/recon-credentials.json
