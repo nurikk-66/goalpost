@@ -1,0 +1,20 @@
+# Real raw SSE frames from GET https://txline-dev.txodds.com/api/scores/stream
+# (devnet, service level 1 free tier), captured with curl -N for ~45s.
+#
+# No devnet fixture was live at capture time (all World Cup fixtures in the
+# current snapshot are either already finished or not yet started - see
+# fixtures_snapshot.json / scores_snapshot.json), so only heartbeat frames
+# arrived, roughly every 15s. This confirms the documented "SSE opens with no
+# data" case: the connection is healthy (HTTP 200, text/event-stream,
+# chunked), it just has nothing to say until a covered match is in progress.
+# Data frames (event: data with an Odds/Scores record body) were not observed
+# in this capture; see odds_updates.json / scores_snapshot.json for the record
+# shapes that would arrive as `data:` payloads once a match is live, per the
+# streaming-data doc.
+
+data: {"Ts":1783878373}
+event: heartbeat
+
+data: {"Ts":1783878388}
+event: heartbeat
+

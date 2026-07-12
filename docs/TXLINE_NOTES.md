@@ -344,6 +344,7 @@ Samples saved to `fixtures/samples/` (all real, `scripts/recon.ts` reproduces th
 | `fixtures_batch_validation.json` | `GET /api/fixtures/batch-validation?epochDay=20646&hourOfDay=3` | required both params, not just `epochDay` as the doc page implied — confirmed via the full OpenAPI spec |
 | `odds_validation.json` | `GET /api/odds/validation?messageId=...&ts=...` | required both `messageId` and `ts`, not just `messageId` — same discrepancy |
 | `scores_stat_validation_example.json` | same endpoint, docs' own worked example (`fixtureId=17952170`, `seq=941`) | kept as a cross-reference / known-good shape from a different (real, non-devnet-of-ours) fixture |
+| `scores_stream_raw_sample.txt` | `GET /api/scores/stream` | real raw SSE bytes, ~45s capture. No fixture was live at capture time, so only `event: heartbeat` frames arrived (~every 15s) — confirms the connection itself works (200, `text/event-stream`, chunked) and reproduces the documented "SSE opens with no data" case. Actual `data:` frame bodies would match the `scores_snapshot.json`/`odds_updates.json` record shapes per the streaming-data doc. |
 
 **1X2 odds record shape** (from `odds_updates.json`), directly usable for the demo's
 live odds display:
