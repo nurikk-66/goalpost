@@ -1,0 +1,87 @@
+name: Anchor Build & Test
+
+# programs/goalpost is developed without a local Rust/Solana/Anchor
+# toolchain (see docs/ARCHITECTURE.md) - this workflow is the actual build
+# and test verification for the program. Deploys are done manually via
+# Solana Playground (beta.solpg.io), not from CI.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SOLANA_VERSION: "2.1.0"
+  ANCHOR_VERSION: "0.32.1"
+
+jobs:
+  anchor-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and git checkouts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-${{ runner.os }}-
+
+      - name: Cache Solana CLI install
+        id: cache-solana
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/solana
+          key: solana-cli-${{ runner.os }}-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana CLI
+        if: steps.cache-solana.outputs.cache-hit != 'true'
+        run: sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+
+      - name: Add Solana CLI to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Anchor CLI binary
+        id: cache-anchor
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/anchor
+          key: anchor-cli-${{ runner.os }}-${{ env.ANCHOR_VERSION }}
+
+      - name: Install Anchor CLI
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate a throwaway local-validator wallet
+        run: solana-keygen new --no-bip39-passphrase --outfile ~/.config/solana/id.json
+
+      - name: Restore the committed program keypair (keeps program ID == declare_id!)
+        run: |
+          mkdir -p target/deploy
+          cp programs/goalpost/keys/goalpost-keypair.json target/deploy/goalpost-keypair.json
+
+      - name: anchor build
+        run: anchor build
+
+      - name: anchor test
+        run: anchor test

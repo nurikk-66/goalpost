@@ -1,0 +1,41 @@
+[toolchain]
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+goalpost = "6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr"
+
+[programs.devnet]
+goalpost = "6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+# `anchor test` starts a local validator (fast, free, deterministic - no
+# devnet fees or rate limits) but seeds it with real accounts cloned from
+# devnet at startup, so our settle() CPI has genuine TxLINE state to verify
+# against instead of an empty ledger:
+#   - the TxLINE txoracle program itself
+#   - the daily_scores_merkle_roots PDA for epochDay=20646, which is the
+#     real Merkle root covering the Argentina vs Switzerland match
+#     (fixtureId 18222446) used throughout fixtures/samples/ and tests/.
+[test]
+startup_wait = 20000
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+
+[[test.validator.clone]]
+address = "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"
+
+[[test.validator.clone]]
+address = "FtnZq4V8mp56GUNEGGXfL1MuyT81cvoz59yeKn192HdH"

@@ -142,7 +142,11 @@ Stat keys use a **period-prefix + base-key** scheme:
   4 = second half in play, 5 = ended/finished, plus ET/penalties/interruption states.
 - **Final result settlement must use records with `action=game_finalised`,
   `statusId=100`, `period=100`** — not in-running or period-specific records. This is
-  called out explicitly in the troubleshooting doc as a common mistake.
+  called out explicitly in the troubleshooting doc as a common mistake. Note this
+  `period` is a **field on `ScoreStat`** in the validation proof (`100` = final),
+  a different thing from the period-*prefix* baked into stat *keys* above (`1001`
+  etc.) — easy to conflate, cost an hour during Phase 2 design (see
+  `docs/ARCHITECTURE.md` §3 changelog).
 - Full stat key table: `txodds.github.io/tx-on-chain/assets/txodds-soccer-feed-v1.1.pdf`
   (PDF, not yet mirrored into this repo).
 
@@ -380,8 +384,12 @@ de-vig manually.
   "Stats": { "1": 3, "2": 1, "...": "..." }
 }
 ```
-Confirms `Stats["1"]`/`Stats["2"]` (base keys, period 0/total) are exactly the pair
-`validate_stat`'s `stat_a`/`stat_b` need for a home/draw/away settle check.
+Confirms `Stats["1"]`/`Stats["2"]` (base keys, total game) are exactly the pair
+`validate_stat_v2`'s `stats[]` need for a home/draw/away settle check — and that
+the live `/scores/stat-validation` proof for this exact record
+(`fixtures/samples/scores_stat_validation.json`) returns those two stats with
+`period: 100`, matching `StatusId: 100` here (see §4's note on the two different
+meanings of "period" in this API).
 
 ## How to reproduce / re-run this recon
 

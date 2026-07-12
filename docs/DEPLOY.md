@@ -1,0 +1,56 @@
+# Deploying `programs/goalpost` (manual, via Solana Playground)
+
+This environment has no local Rust/Solana/Anchor toolchain (see
+`docs/TRUST_MODEL.md` "Status"), so builds/tests run in GitHub Actions
+(`.github/workflows/anchor-ci.yml`) and **deploys are done manually** via
+[Solana Playground](https://beta.solpg.io).
+
+## Why the program keypair matters
+
+`declare_id!("6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr")` in
+`programs/goalpost/src/lib.rs` is hardcoded to match a real keypair
+committed at `programs/goalpost/keys/goalpost-keypair.json` (generated with
+`@solana/web3.js`, same 64-byte secret-key array format `solana-keygen`
+produces — devnet-only, holds no value, safe to commit). **Playground must
+deploy using this exact keypair**, or the deployed program's address won't
+match what the program's own code declares, and every CPI/PDA derivation
+that assumes this program ID (including our own `Market`/`Position` PDAs,
+which are seeded independently of the program ID string but resolved via
+`program.programId` client-side) will be looking at the wrong address.
+
+## Steps
+
+1. Open [beta.solpg.io](https://beta.solpg.io), create a new Anchor project.
+2. Replace the generated `programs/*/src/lib.rs` and add the rest of
+   `programs/goalpost/src/` (state.rs, errors.rs, txoracle.rs,
+   instructions/) — copy the files from this repo as-is.
+3. Set the project's `Cargo.toml` dependencies to match
+   `programs/goalpost/Cargo.toml` (`anchor-lang = "0.32.1"` with
+   `init-if-needed`, `anchor-spl = "0.32.1"`).
+4. In Playground's wallet/keypair panel, **import**
+   `programs/goalpost/keys/goalpost-keypair.json` as the program's deploy
+   keypair (Playground supports importing a custom program keypair rather
+   than generating its own — use that, don't let it generate a new one).
+5. Set the cluster to **devnet**.
+6. Build, then deploy. Confirm the deployed program address matches
+   `6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr` exactly.
+7. Fund the Playground deploy wallet with devnet SOL (program deploys cost
+   real rent - a few SOL for a program this size is a safe buffer).
+
+## After deploying
+
+Once deployed, the devnet end-to-end script (create → two wallets join →
+settle with the real captured proof → both claims) can run from this repo
+using `@solana/web3.js`/`@coral-xyz/anchor` against the live program, the
+same way `scripts/recon.ts` already talks to devnet — no local Anchor CLI
+needed for that part, only a funded devnet wallet (reuse
+`scripts/vendor/recon-wallet.json` from Phase 0, or a fresh one).
+
+Record the actual deployed program's devnet USDC-equivalent mint address
+here once created (`docs/ARCHITECTURE.md` §5 - we mint our own demo token
+rather than depend on a shared faucet):
+
+```
+devnet program:  6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr
+demo mint:       <fill in after `spl-token create-token` via Playground's terminal>
+```

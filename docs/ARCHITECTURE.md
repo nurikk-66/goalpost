@@ -100,21 +100,23 @@ and this is verified against the real binary, not just the design).
 cryptographically-proven stat values; it never trusts a caller-supplied
 "this is a home win" claim.**
 
-Reasoning: `validate_stat`'s Merkle proof authenticates the exact `value`
-inside each `StatTerm.stat_to_prove` (a caller can't lie about the value — a
-wrong value fails to reconstruct the real on-chain root). `validate_stat`
-*also* requires a non-optional `TraderPredicate` argument, but instead of
-using it to assert a specific outcome (which would mean trusting whichever
-outcome the transaction's sender chose to assert), we pass an
-always-true predicate (e.g. `threshold: -999_999, comparison: GreaterThan` on
-the home−away subtraction — true for any realistic scoreline) purely to
-satisfy the CPI's required argument shape. The predicate is a no-op by
-design; **we derive `Outcome` ourselves**, in our own instruction, by
-comparing the two authenticated values:
+Reasoning: `validate_stat_v2`'s Merkle proof authenticates the exact `value`
+inside each `StatLeaf.stat` (a caller can't lie about the value — a wrong
+value fails to reconstruct the real on-chain root; the wrong-result-rejected
+test in `tests/goalpost.ts` exercises exactly this). V2 also requires every
+stat passed in `payload.stats` to be referenced by exactly one predicate in
+`strategy.discrete_predicates` or it rejects with `IncompleteStatCoverage` —
+but instead of using that predicate to assert a specific outcome (which
+would mean trusting whichever outcome the transaction's sender chose to
+assert), we pass a single `Binary` predicate that's structurally always-true
+(`threshold: -999_999, comparison: GreaterThan` on the home−away
+subtraction — true for any realistic scoreline), purely to satisfy V2's
+coverage requirement. The predicate is a no-op by design; **we derive
+`Outcome` ourselves**, in our own instruction, by comparing the two
+authenticated values directly:
 
 ```rust
-let diff = home_goals_value - away_goals_value; // both proven authentic via CPI
-let outcome = match diff.cmp(&0) {
+let outcome = match home_goals.cmp(&away_goals) {
     Greater => Outcome::Home,
     Less => Outcome::Away,
     Equal => Outcome::Draw,
@@ -125,21 +127,37 @@ This is more auditable than trusting a claimed outcome + predicate match, and
 it's exactly the "clean, well-documented, deterministic resolution logic" the
 sponsor's docs call out as what judges value.
 
-### Wiring (fixture_id 1/2 = total-game home/away goals)
+### Wiring (real, implemented — matches the captured proof exactly)
 
-1. Caller supplies: `ts` (the score record's timestamp — must come from a
-   real finalized record, i.e. `action=game_finalised`, `statusId=100`), the
-   `ScoresBatchSummary` for the fixture, the Merkle proof nodes, and the two
-   `StatTerm`s for stat keys `1` (home goals, period `0`) and `2` (away
-   goals, period `0`).
+Confirmed against the actual captured proof
+(`fixtures/samples/scores_stat_validation.json`, requested via
+`?statKeys=1,2`, i.e. the **V2** REST shape) rather than assumed from the
+docs pages alone:
+
+1. Caller supplies the full `StatValidationInput` for the two stats: stat
+   key `1` (home total goals) and `2` (away total goals), **`period == 100`**
+   on both — not `0`. The generic "period prefix" scheme in
+   `docs/TXLINE_NOTES.md` §4 (`0` = total game, `1000` = first half, …)
+   describes how *stat keys* like `1001` encode a period; the separate
+   `period` *field* on `ScoreStat` is a different signal entirely — it's
+   TxLINE's own marker for which record the value came from, and `100` is
+   what a real `game_finalised` record actually returns (confirmed directly
+   from the captured sample, not the docs prose). `settle` requires
+   `period == 100` explicitly — see `docs/TRUST_MODEL.md` for why this
+   matters (without it, any real-but-non-final scoreline could settle a
+   market).
 2. Program derives `epoch_day = ts / 86_400_000` and the
    `daily_scores_merkle_roots` PDA (seeds `["daily_scores_roots", epoch_day:
-   u16 LE]`, owned by the **TxLINE program**, not ours).
+   u16 LE]`, owned by the **TxLINE program**, not ours) — verified as a real
+   devnet account (`FtnZq4V8mp56GUNEGGXfL1MuyT81cvoz59yeKn192HdH` for our
+   captured match's epoch day, 20646) during design, and cloned into the
+   local test validator for `anchor test` (see `Anchor.toml`).
 3. Program asserts `fixture_summary.fixture_id == market.fixture_id` *before*
    the CPI (cheap, avoids wasting compute on a proof for the wrong match).
-4. CPI into TxLINE's `validate_stat` (devnet program
-   `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`), passing the
-   `daily_scores_merkle_roots` account plus the args above.
+4. CPI into TxLINE's `validate_stat_v2` (devnet program
+   `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`, discriminator
+   `[208,215,194,214,241,71,246,178]` from the real IDL), passing the
+   `daily_scores_merkle_roots` account plus the payload/strategy above.
 5. On CPI success: compute `Outcome` as above, write `market.outcome`,
    `settlement_home_goals`/`settlement_away_goals`,
    `settlement_epoch_day`, `settled_at`, `status = Settled`.
@@ -147,28 +165,28 @@ sponsor's docs call out as what judges value.
    anyone with a valid proof (transient failures cost only the tx fee, not
    funds).
 
-Exact Borsh field wiring against the CPI call (which of `fixture_proof` vs
-`main_tree_proof` vs each `StatTerm.stat_proof` goes where) will be finalized
-against the real captured proof in `fixtures/samples/scores_stat_validation.json`
-once we can actually compile and test — that file is a genuine, already-verified
-`validate_stat` payload for a real finished match (Argentina 3–1
-Switzerland), so it doubles as the test fixture for the happy-path test (§6).
+**REST-vs-IDL naming gotcha** (worth remembering for the SDK in Phase 3): the
+REST proof endpoint's JSON uses different field names than the on-chain IDL
+for the same data — `summary.eventStatsSubTreeRoot` (REST) is
+`events_sub_tree_root` (IDL/Rust) / `eventsSubTreeRoot` (Anchor TS client);
+`subTreeProof` (REST) is the `fixture_proof` argument; `mainTreeProof` maps
+straight across to `main_tree_proof`. `tests/goalpost.ts`'s `realSettleArgs()`
+does this mapping explicitly and is the reference implementation for it.
 
-**Open risk to test early in Phase 2**: our own recon script needed
-`ComputeBudgetProgram.setComputeUnitLimit(1_400_000)` just to *simulate*
-`validate_stat` off-chain. A real on-chain CPI from inside `settle()` adds our
-own instruction's overhead on top of that. If it doesn't fit Solana's compute
-budget, the fallback is splitting proof verification across multiple
-instructions/transactions (or verifying a cheaper single-stat CPI instead of
-carrying both `stat_a`/`stat_b` in one call) — decide once measured, don't
-pre-optimize.
+**Open risk, not yet verified (needs CI)**: our own Phase 0 recon script
+needed `ComputeBudgetProgram.setComputeUnitLimit(1_400_000)` just to
+*simulate* `validate_stat_v2` off-chain. A real on-chain CPI from inside
+`settle()` adds our own instruction's overhead on top of that. If it doesn't
+fit Solana's compute budget, the fallback is splitting proof verification
+across multiple instructions/transactions — decide once
+`.github/workflows/anchor-ci.yml` actually measures it, don't pre-optimize.
 
 **Not yet decided**: whether to also CPI `validate_fixture` (proves the
-fixture metadata itself, not just the stat) — see `docs/OPEN_QUESTIONS.md`.
-Current lean: skip it for v1 unless it's cheap, because `market.fixture_id`
-is already fixed at `create_market` time and `validate_stat`'s own
-`fixture_summary.fixture_id` check (step 3 above) already binds the proof to
-the right match.
+fixture metadata itself, not just the stat) — see `docs/OPEN_QUESTIONS.md`
+and `docs/TRUST_MODEL.md`. Current implementation: skipped for v1, because
+`market.fixture_id` is already fixed at `create_market` time and
+`validate_stat_v2`'s own `fixture_summary.fixture_id` check (step 3 above)
+already binds the proof to the right match.
 
 ## 4. `claim` — payout math
 
@@ -227,9 +245,9 @@ All four use the real captured devnet data from Phase 0
    stake since they're the only Home backer) → Away-backer's `claim` fails
    with `NothingToClaim`.
 2. **Wrong-result rejected**: `settle` called with a tampered stat value
-   (e.g. claiming away goals = 5 instead of the real 1) against the real
-   Merkle proof nodes → CPI fails to reconstruct the true root → `settle`
-   instruction fails, `Market.status` stays `Locked`.
+   (home goals = 99 instead of the real 3) against the real Merkle proof
+   nodes → CPI fails to reconstruct the true root → `settle` instruction
+   fails, `Market.status` stays `Locked`.
 3. **Double-claim rejected**: winning wallet calls `claim` twice → second
    call fails, `Position.claimed` already `true`.
 4. **Non-participant claim rejected**: a wallet that never called `join`
@@ -239,9 +257,14 @@ All four use the real captured devnet data from Phase 0
 
 ## 7. What's still open
 
-Tracked in `docs/OPEN_QUESTIONS.md`:
-- Exact CPI field wiring for `validate_stat` (needs the real toolchain to
-  test against the captured sample).
-- `validate_stat` revert-on-false vs. return-value-to-check (needs testing).
-- Whether to also CPI `validate_fixture`.
-- CPI compute budget fit.
+Source is complete (`programs/goalpost/src/`, `tests/goalpost.ts`); nothing
+has actually run yet. Tracked in `docs/OPEN_QUESTIONS.md`:
+- **`anchor build`/`anchor test` haven't executed anywhere yet** — pending
+  the first GitHub Actions CI run (`.github/workflows/anchor-ci.yml`).
+- `validate_stat_v2` revert-on-false vs. return-value-to-check (our CPI
+  helper assumes "any failure is a CPI `Err`"; the wrong-result-rejected test
+  is exactly what would catch this assumption being wrong).
+- CPI compute budget fit inside `settle`.
+- Whether to also CPI `validate_fixture` (currently: no, see §3).
+- A scripted devnet end-to-end run — blocked on a manual deploy via Solana
+  Playground (see `docs/TRUST_MODEL.md` "Status").
