@@ -29,7 +29,7 @@ pub struct Settle<'info> {
 /// the authenticated stat values - never trusts a caller-supplied outcome
 /// claim. See docs/ARCHITECTURE.md §3 for the full rationale.
 #[allow(clippy::too_many_arguments)]
-pub fn handler(
+pub(crate) fn handler(
     ctx: Context<Settle>,
     ts: i64,
     fixture_summary: ScoresBatchSummary,

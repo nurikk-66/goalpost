@@ -37,7 +37,7 @@ pub struct Join<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<Join>, outcome: Outcome, amount: u64) -> Result<()> {
+pub(crate) fn handler(ctx: Context<Join>, outcome: Outcome, amount: u64) -> Result<()> {
     require!(amount > 0, GoalpostError::ZeroAmount);
 
     let market = &mut ctx.accounts.market;

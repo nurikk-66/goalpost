@@ -37,7 +37,7 @@ pub struct CreateMarket<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<CreateMarket>, fixture_id: u64, market_type: u8, lock_time: i64) -> Result<()> {
+pub(crate) fn handler(ctx: Context<CreateMarket>, fixture_id: u64, market_type: u8, lock_time: i64) -> Result<()> {
     require!(lock_time > Clock::get()?.unix_timestamp, GoalpostError::InvalidLockTime);
 
     let market = &mut ctx.accounts.market;

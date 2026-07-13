@@ -40,7 +40,7 @@ pub struct Claim<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-pub fn handler(ctx: Context<Claim>) -> Result<()> {
+pub(crate) fn handler(ctx: Context<Claim>) -> Result<()> {
     let market = &mut ctx.accounts.market;
     require!(market.status == MarketStatus::Settled, GoalpostError::MarketNotSettled);
 

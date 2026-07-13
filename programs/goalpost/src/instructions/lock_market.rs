@@ -18,7 +18,7 @@ pub struct LockMarket<'info> {
     pub market: Account<'info, Market>,
 }
 
-pub fn handler(ctx: Context<LockMarket>) -> Result<()> {
+pub(crate) fn handler(ctx: Context<LockMarket>) -> Result<()> {
     let market = &mut ctx.accounts.market;
     require!(market.status == MarketStatus::Open, GoalpostError::MarketAlreadyLocked);
     require!(
