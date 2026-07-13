@@ -12,7 +12,12 @@ on:
   workflow_dispatch:
 
 env:
-  SOLANA_VERSION: "2.1.0"
+  # Solana 2.1.0's bundled cargo-build-sbf toolchain ships an old Cargo
+  # (1.79.0) that can't build crates.io dependencies requiring edition2024
+  # (first failure: block-buffer v0.12.1). Pinned to the current stable
+  # Agave release instead - check https://github.com/anza-xyz/agave/releases
+  # for the latest tag if this needs bumping again.
+  SOLANA_VERSION: "4.1.1"
   ANCHOR_VERSION: "0.32.1"
 
 jobs:
