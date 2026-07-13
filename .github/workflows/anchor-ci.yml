@@ -4,6 +4,12 @@ name: Anchor Build & Test
 # toolchain (see docs/ARCHITECTURE.md) - this workflow is the actual build
 # and test verification for the program. Deploys are done manually via
 # Solana Playground (beta.solpg.io), not from CI.
+#
+# Split into two jobs deliberately: actions/cache only saves on job
+# *success* (its post-save hook is gated on success()), so while we're
+# iterating on real anchor build/test failures, a toolchain-only job that
+# has nothing else to fail lets the slow Solana CLI / anchor-cli installs
+# actually get cached, instead of recompiling from scratch on every push.
 
 on:
   push:
@@ -21,16 +27,49 @@ env:
   ANCHOR_VERSION: "0.32.1"
 
 jobs:
-  anchor-test:
+  toolchain:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-
       - name: Install system build dependencies
         # anchor-cli pulls in the Ledger hardware-wallet stack (hidapi),
         # whose build script requires the libudev system library via
         # pkg-config - not present on the bare ubuntu-latest runner.
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Solana CLI install
+        id: cache-solana
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/solana
+          key: solana-cli-${{ runner.os }}-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana CLI
+        if: steps.cache-solana.outputs.cache-hit != 'true'
+        run: sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+
+      - name: Cache Anchor CLI binary
+        id: cache-anchor
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/anchor
+          key: anchor-cli-${{ runner.os }}-${{ env.ANCHOR_VERSION }}
+
+      - name: Install Anchor CLI
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+
+  anchor-test:
+    needs: toolchain
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system build dependencies
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
 
       - name: Install Rust
@@ -46,30 +85,20 @@ jobs:
           restore-keys: |
             cargo-registry-${{ runner.os }}-
 
-      - name: Cache Solana CLI install
-        id: cache-solana
+      - name: Restore Solana CLI install
         uses: actions/cache@v4
         with:
           path: ~/.local/share/solana
           key: solana-cli-${{ runner.os }}-${{ env.SOLANA_VERSION }}
 
-      - name: Install Solana CLI
-        if: steps.cache-solana.outputs.cache-hit != 'true'
-        run: sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
-
       - name: Add Solana CLI to PATH
         run: echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
 
-      - name: Cache Anchor CLI binary
-        id: cache-anchor
+      - name: Restore Anchor CLI binary
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/anchor
           key: anchor-cli-${{ runner.os }}-${{ env.ANCHOR_VERSION }}
-
-      - name: Install Anchor CLI
-        if: steps.cache-anchor.outputs.cache-hit != 'true'
-        run: cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
