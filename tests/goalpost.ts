@@ -23,6 +23,7 @@ import {
 import { assert } from "chai";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Named import of BN from @coral-xyz/anchor fails under Node's ESM loader
 // (root package.json has "type": "module") - "Named export 'BN' not found"
@@ -30,6 +31,10 @@ import path from "node:path";
 // namespace import sidesteps Node's static named-export detection for CJS
 // modules entirely.
 const { BN } = anchor;
+
+// __dirname doesn't exist under real ESM (same root-package.json "type":
+// "module" as above) - this is the standard replacement.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TXORACLE_PROGRAM_ID = new PublicKey("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
 const REAL_EPOCH_DAY = 20646; // covers the real captured proof's ts
