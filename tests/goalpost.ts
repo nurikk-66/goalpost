@@ -11,6 +11,16 @@
 // (fixtures/samples/scores_stat_validation.json, Argentina 3-1 Switzerland,
 // fixtureId 18222446).
 import * as anchor from "@coral-xyz/anchor";
+// @coral-xyz/anchor re-exports BN, but under real Node ESM interop
+// (root package.json has "type": "module") neither `import { BN } from
+// "@coral-xyz/anchor"` (named export not statically detected) nor
+// `const { BN } = anchor` (resolves to something that isn't a constructor -
+// likely the bn.js module namespace, not the class) reliably works. bn.js
+// is anchor's own BN implementation and a real (if previously transitive)
+// dependency; importing it directly sidesteps the interop ambiguity
+// entirely - a default import of a CJS module always maps to the whole
+// `module.exports`, no named-property detection involved.
+import BN from "bn.js";
 import { Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -24,13 +34,6 @@ import { assert } from "chai";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-// Named import of BN from @coral-xyz/anchor fails under Node's ESM loader
-// (root package.json has "type": "module") - "Named export 'BN' not found"
-// even though the namespace import above works fine. Deriving it from the
-// namespace import sidesteps Node's static named-export detection for CJS
-// modules entirely.
-const { BN } = anchor;
 
 // __dirname doesn't exist under real ESM (same root-package.json "type":
 // "module" as above) - this is the standard replacement.
