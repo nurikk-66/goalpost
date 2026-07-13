@@ -11,7 +11,6 @@
 // (fixtures/samples/scores_stat_validation.json, Argentina 3-1 Switzerland,
 // fixtureId 18222446).
 import * as anchor from "@coral-xyz/anchor";
-import { BN } from "@coral-xyz/anchor";
 import { Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -24,6 +23,13 @@ import {
 import { assert } from "chai";
 import fs from "node:fs";
 import path from "node:path";
+
+// Named import of BN from @coral-xyz/anchor fails under Node's ESM loader
+// (root package.json has "type": "module") - "Named export 'BN' not found"
+// even though the namespace import above works fine. Deriving it from the
+// namespace import sidesteps Node's static named-export detection for CJS
+// modules entirely.
+const { BN } = anchor;
 
 const TXORACLE_PROGRAM_ID = new PublicKey("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
 const REAL_EPOCH_DAY = 20646; // covers the real captured proof's ts
