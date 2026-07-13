@@ -1,31 +1,53 @@
-# Deploying `programs/goalpost` (manual, via Solana Playground)
+# Deploying `programs/goalpost`
+
+**Status as of 2026-07-13: already deployed, live on devnet.** No manual
+Playground deploy is needed. This happened automatically as a side effect of
+CI: `anchor test` performs its own deploy step against whatever cluster is
+configured (`[provider] cluster = "devnet"` in `Anchor.toml`) *regardless* of
+`--skip-local-validator` — that flag only skips spinning up a local
+validator, not the deploy step. The first devnet-direct CI run deployed the
+program using the funded CI wallet (restored from the `DEVNET_WALLET_SECRET_KEY`
+repo secret, same wallet as `scripts/vendor/recon-wallet.json` from Phase 0)
+as its upgrade authority.
+
+Confirmed live:
+
+```
+devnet program:   6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr
+executable:       true
+owner:            BPFLoaderUpgradeab1e11111111111111111111111
+upgrade authority: 4oRVRLrWtBAV9QVZSLXhb1edW9JTzMBBvz4uhiU4rRky (the CI/Phase-0 devnet wallet)
+```
+
+**Implication for anyone who wants to upgrade the deployed code later**: only
+the wallet above (or whoever holds `scripts/vendor/recon-wallet.json` /
+the `DEVNET_WALLET_SECRET_KEY` secret) can push an upgrade to this program
+ID. This does **not** affect normal usage — `create_market`/`join`/`settle`/
+`claim` have no admin/authority requirement (see `docs/TRUST_MODEL.md`), only
+redeploying new program *code* needs this specific key.
+
+## If a manual deploy is ever needed again (e.g. a different environment,
+## or CI's auto-deploy is disabled)
 
 This environment has no local Rust/Solana/Anchor toolchain (see
-`docs/TRUST_MODEL.md` "Status"), so builds/tests run in GitHub Actions
-(`.github/workflows/anchor-ci.yml`) and **deploys are done manually** via
-[Solana Playground](https://beta.solpg.io).
+`docs/TRUST_MODEL.md` "Status"), so the natural manual fallback is
+[Solana Playground](https://beta.solpg.io):
 
-**This step is now a hard prerequisite for CI itself, not just for a
-follow-up e2e check.** `anchor test` runs directly against real devnet
-(`--skip-local-validator` - see `Anchor.toml` and `docs/OPEN_QUESTIONS.md`
-for why the local validator was abandoned), so `.github/workflows/anchor-ci.yml`
-will keep failing at `anchor test` with a program-not-found-style error
-until this deploy actually happens.
-
-## Why the program keypair matters
+### Why the program keypair matters
 
 `declare_id!("6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr")` in
 `programs/goalpost/src/lib.rs` is hardcoded to match a real keypair
 committed at `programs/goalpost/keys/goalpost-keypair.json` (generated with
 `@solana/web3.js`, same 64-byte secret-key array format `solana-keygen`
-produces — devnet-only, holds no value, safe to commit). **Playground must
-deploy using this exact keypair**, or the deployed program's address won't
-match what the program's own code declares, and every CPI/PDA derivation
-that assumes this program ID (including our own `Market`/`Position` PDAs,
-which are seeded independently of the program ID string but resolved via
-`program.programId` client-side) will be looking at the wrong address.
+produces — devnet-only, holds no value, safe to commit). Any deploy tool
+must use this exact keypair (or already-matching on-chain state, as is now
+the case) — importing a *different* keypair would either fail (since the
+program ID is already occupied and its real upgrade authority is the
+Phase 0 wallet, not a fresh Playground-generated one) or, if targeting a
+fresh address, produce a program ID that doesn't match `declare_id!`.
 
-## Steps
+### Steps (only if redeploying from scratch to a *new* address, or if CI's
+### auto-deploy path is unavailable)
 
 1. Open [beta.solpg.io](https://beta.solpg.io), create a new Anchor project.
 2. Replace the generated `programs/*/src/lib.rs` and add the rest of
@@ -38,31 +60,19 @@ which are seeded independently of the program ID string but resolved via
    `programs/goalpost/keys/goalpost-keypair.json` as the program's deploy
    keypair (Playground supports importing a custom program keypair rather
    than generating its own — use that, don't let it generate a new one).
+   To *upgrade* the existing live deployment instead, Playground's deploy
+   wallet must be the upgrade authority above, not this program keypair.
 5. Set the cluster to **devnet**.
 6. Build, then deploy. Confirm the deployed program address matches
    `6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr` exactly.
-7. Fund the Playground deploy wallet with devnet SOL (program deploys cost
-   real rent - a few SOL for a program this size is a safe buffer).
+7. Fund the Playground deploy wallet with devnet SOL if deploying fresh.
 
-## After deploying
+## Devnet USDC-equivalent mint
 
-Once deployed, `.github/workflows/anchor-ci.yml`'s `anchor-test` job should
-go green on its next run (or `workflow_dispatch` it manually) — it already
-restores the funded devnet wallet from the `DEVNET_WALLET_SECRET_KEY` repo
-secret (same wallet as `scripts/vendor/recon-wallet.json` from Phase 0) and
-runs `tests/goalpost.ts` directly against devnet, no local validator or
-Anchor CLI cloning involved.
-
-Separately, the same funded devnet wallet can drive a fully scripted
-end-to-end run (create → two wallets join → settle with the real captured
-proof → both claims) via `@solana/web3.js`/`@coral-xyz/anchor`, the same way
-`scripts/recon.ts` already talks to devnet.
-
-Record the actual deployed program's devnet USDC-equivalent mint address
-here once created (`docs/ARCHITECTURE.md` §5 - we mint our own demo token
-rather than depend on a shared faucet):
+Record the actual demo mint address here once created (`docs/ARCHITECTURE.md`
+§5 - we mint our own demo token rather than depend on a shared faucet):
 
 ```
 devnet program:  6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr
-demo mint:       <fill in after `spl-token create-token` via Playground's terminal>
+demo mint:       <not yet created>
 ```

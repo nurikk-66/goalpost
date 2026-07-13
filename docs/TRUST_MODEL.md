@@ -4,13 +4,16 @@ What `programs/goalpost` actually checks on-chain, and what it deliberately
 does not. Written against the real implementation in `programs/goalpost/src/`
 (not just the design) — see `docs/ARCHITECTURE.md` for the design rationale.
 
-Status: program source is complete; **not yet verified by a passing
-`anchor test` run or a devnet deployment** (blocked on GitHub Actions CI —
-see `.github/workflows/anchor-ci.yml` — and a manual deploy via Solana
-Playground, since this environment has no local Rust/Solana/Anchor
-toolchain). This document describes what the code is written to do; it will
-be re-confirmed once CI is green and a devnet end-to-end script has run
-against a real deployment.
+Status (2026-07-13): program source compiles clean and **is deployed and
+live on devnet** (`6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr` — see
+`docs/DEPLOY.md`), via CI's own automatic deploy step in
+`.github/workflows/anchor-ci.yml`. **`anchor test` has not passed yet** —
+CI now runs directly against real devnet (`--skip-local-validator`; the
+local `solana-test-validator` was abandoned, see `docs/OPEN_QUESTIONS.md`)
+and is currently failing on an unrelated test-runner error, still being
+diagnosed. This document describes what the deployed code is written to
+do; it will be re-confirmed once `anchor test` is actually green against
+this live deployment.
 
 ## No admin key can move user funds
 
