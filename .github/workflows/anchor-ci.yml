@@ -72,7 +72,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # pnpm 11.x requires Node >= 22.13 (see pnpm-workspace.yaml /
+          # package.json packageManager) - Node 20 fails at pnpm's own
+          # store-path check before anything in this repo even runs.
+          node-version: "22"
           cache: pnpm
 
       - name: Install workspace dependencies
