@@ -2,16 +2,17 @@
 // cases from MASTER_PLAN.md §3.1 (happy path, wrong-result-rejected,
 // double-claim-rejected, non-participant-claim-rejected).
 //
-// Runs against a local validator that clones the real TxLINE txoracle
-// program and the real daily_scores_merkle_roots PDA for epochDay 20646
-// from devnet (see Anchor.toml [test.validator.clone]) - so the happy-path
-// settle() call verifies against genuine on-chain state, not a mock. The
-// proof itself is the real one captured in Phase 0
+// Runs directly against real devnet (see Anchor.toml - local
+// solana-test-validator was abandoned after two unrelated startup crashes),
+// where the real TxLINE txoracle program and the real
+// daily_scores_merkle_roots PDA for epochDay 20646 already exist - so the
+// happy-path settle() call verifies against genuine on-chain state, not a
+// mock or a clone. The proof itself is the real one captured in Phase 0
 // (fixtures/samples/scores_stat_validation.json, Argentina 3-1 Switzerland,
 // fixtureId 18222446).
 import * as anchor from "@coral-xyz/anchor";
 import { BN } from "@coral-xyz/anchor";
-import { Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
@@ -53,9 +54,20 @@ describe("goalpost", () => {
 
   let mint: PublicKey;
 
-  async function airdrop(pubkey: PublicKey, sol = 5) {
-    const sig = await provider.connection.requestAirdrop(pubkey, sol * LAMPORTS_PER_SOL);
-    await provider.connection.confirmTransaction(sig, "confirmed");
+  // Devnet's public airdrop faucet is rate-limited (Phase 0 hit this
+  // directly), so test wallets are funded by transferring from our own
+  // already-funded provider wallet rather than requesting a fresh airdrop
+  // per wallet. 0.05 SOL is plenty for a handful of transactions + one ATA's
+  // rent per test wallet.
+  async function fundWallet(pubkey: PublicKey, sol = 0.05) {
+    const tx = new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: payer.publicKey,
+        toPubkey: pubkey,
+        lamports: Math.round(sol * LAMPORTS_PER_SOL),
+      })
+    );
+    await provider.sendAndConfirm(tx, [payer]);
   }
 
   async function fundedAta(owner: PublicKey, amount: number): Promise<PublicKey> {
@@ -147,8 +159,8 @@ describe("goalpost", () => {
     before(async () => {
       homeBacker = Keypair.generate();
       awayBacker = Keypair.generate();
-      await airdrop(homeBacker.publicKey);
-      await airdrop(awayBacker.publicKey);
+      await fundWallet(homeBacker.publicKey);
+      await fundWallet(awayBacker.publicKey);
 
       const fixtureId = REAL_FIXTURE_ID;
       const marketType = 0;
@@ -286,7 +298,7 @@ describe("goalpost", () => {
 
     it("rejects a claim from a wallet that never joined (no Position account exists)", async () => {
       const stranger = Keypair.generate();
-      await airdrop(stranger.publicKey, 1);
+      await fundWallet(stranger.publicKey, 0.02);
       const strangerTokenAccount = await fundedAta(stranger.publicKey, 0);
       const strangerPosition = positionPdaFor(market, stranger.publicKey);
 

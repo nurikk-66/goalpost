@@ -10,6 +10,16 @@ name: Anchor Build & Test
 # iterating on real anchor build/test failures, a toolchain-only job that
 # has nothing else to fail lets the slow Solana CLI / anchor-cli installs
 # actually get cached, instead of recompiling from scratch on every push.
+#
+# Tests run against real devnet (--skip-local-validator), not a local
+# solana-test-validator - see Anchor.toml for why (two different unrelated
+# local-validator startup crashes that didn't converge after real fix
+# attempts; devnet-direct just works today, at the cost of speed/
+# determinism and needing a funded wallet, restored here from the
+# DEVNET_WALLET_SECRET_KEY repo secret). This requires programs/goalpost to
+# actually be deployed to devnet first (manually, via Solana Playground -
+# see docs/DEPLOY.md) - until that happens this job is expected to fail at
+# `anchor test` with a program-not-found-style error, not a toolchain issue.
 
 on:
   push:
@@ -115,8 +125,12 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate a throwaway local-validator wallet
-        run: solana-keygen new --no-bip39-passphrase --outfile ~/.config/solana/id.json
+      - name: Restore the funded devnet wallet
+        env:
+          DEVNET_WALLET_SECRET_KEY: ${{ secrets.DEVNET_WALLET_SECRET_KEY }}
+        run: |
+          mkdir -p ~/.config/solana
+          echo "$DEVNET_WALLET_SECRET_KEY" > ~/.config/solana/id.json
 
       - name: Restore the committed program keypair (keeps program ID == declare_id!)
         run: |
@@ -127,12 +141,4 @@ jobs:
         run: anchor build
 
       - name: anchor test
-        run: anchor test
-
-      - name: Dump local validator log on failure
-        if: failure()
-        run: |
-          echo "--- .anchor/test-ledger/ contents ---"
-          ls -la .anchor/test-ledger/ 2>&1 || echo "no .anchor/test-ledger/ dir"
-          echo "--- .anchor/test-ledger/validator.log (real solana-test-validator output, tail) ---"
-          tail -n 300 .anchor/test-ledger/validator.log 2>&1 || echo "validator.log not found"
+        run: anchor test --skip-local-validator

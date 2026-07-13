@@ -25,11 +25,20 @@ Update as answered.
   inside our own `settle` instruction (our own Phase 0 recon needed a 1.4M compute
   unit budget just to simulate it off-chain)? See `docs/ARCHITECTURE.md` §3 for the
   fallback if not. First real signal will come from the CI run.
-- **Program source is complete but has never been compiled** (no local
-  Rust/Solana/Anchor toolchain in this environment - see
-  `docs/TRUST_MODEL.md` "Status"). `.github/workflows/anchor-ci.yml` is the
-  first real compiler/test pass; there may be straightforward syntax/type
-  errors it surfaces that a local `cargo check` would normally catch first.
+- **Why did the local solana-test-validator actually fail?** Never fully
+  root-caused - see "Answered" below for what's known and why we stopped
+  digging.
+- **Devnet-direct test run not yet green** (see "Answered": pivot decision).
+  Blocked on `programs/goalpost` actually being deployed to devnet - until
+  then `anchor test --skip-local-validator` is expected to fail at whatever
+  instruction first touches the program account (most likely
+  `create_market`), with a program-not-found-style error, not a code bug.
+  This is a real, external blocker, not something to guess around.
+- **Does devnet-direct testing burn through the funded wallet's balance
+  over many CI iterations?** Each full run creates a fresh mint + 2-3
+  funded keypairs + market/position accounts (~0.15-0.2 SOL all in). Wallet
+  had ~5 SOL as of 2026-07-13. Fine for now; revisit (refund the wallet, or
+  add account-closing to reclaim rent) if it becomes a real constraint.
 
 ## Answered
 
@@ -63,3 +72,23 @@ Update as answered.
   IDL; `subTreeProof` in REST is the `fixture_proof` CPI argument). Mapped
   explicitly in `tests/goalpost.ts`'s `realSettleArgs()`. Will need the same
   mapping in `packages/sdk` (Phase 3).
+- **Local test-validator abandoned; pivoted to devnet-direct testing
+  (2026-07-13).** After the program itself finally compiled clean (5 real
+  fixes: `libudev-dev`, Node version, Solana CLI version, glob re-exports,
+  `idl-build` feature), `anchor test` hit two different unrelated
+  `solana-test-validator` startup failures in a row: first a clear panic
+  (`UnspecifiedIpAddr(0.0.0.0)` in `solana_gossip::node::Node::new_with_external_ip`,
+  fixed by pinning `bind_address`/`gossip_host` to `127.0.0.1`), then a
+  second run where the validator process didn't even reach genesis (no
+  `validator.log` at all) - a different failure mode, not obviously caused
+  by the same fix or an obvious next one. Per a user-set hard limit (one
+  diagnostic run + one fix attempt), stopped fighting the local validator
+  rather than keep guessing. Switched to running `anchor test
+  --skip-local-validator` directly against real devnet: the real TxLINE
+  program and the real `daily_scores_merkle_roots` account are already
+  there, so nothing needs cloning, and it sidesteps the local-validator
+  startup problem entirely. Trade-off: real devnet latency instead of a
+  local validator's near-instant blocks, and a real funded wallet is
+  required (CI restores it from the `DEVNET_WALLET_SECRET_KEY` repo secret
+  - the same wallet Phase 0 funded and used). See `docs/DEPLOY.md` and
+  `Anchor.toml`.

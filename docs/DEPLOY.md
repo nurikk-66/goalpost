@@ -5,6 +5,13 @@ This environment has no local Rust/Solana/Anchor toolchain (see
 (`.github/workflows/anchor-ci.yml`) and **deploys are done manually** via
 [Solana Playground](https://beta.solpg.io).
 
+**This step is now a hard prerequisite for CI itself, not just for a
+follow-up e2e check.** `anchor test` runs directly against real devnet
+(`--skip-local-validator` - see `Anchor.toml` and `docs/OPEN_QUESTIONS.md`
+for why the local validator was abandoned), so `.github/workflows/anchor-ci.yml`
+will keep failing at `anchor test` with a program-not-found-style error
+until this deploy actually happens.
+
 ## Why the program keypair matters
 
 `declare_id!("6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr")` in
@@ -39,12 +46,17 @@ which are seeded independently of the program ID string but resolved via
 
 ## After deploying
 
-Once deployed, the devnet end-to-end script (create → two wallets join →
-settle with the real captured proof → both claims) can run from this repo
-using `@solana/web3.js`/`@coral-xyz/anchor` against the live program, the
-same way `scripts/recon.ts` already talks to devnet — no local Anchor CLI
-needed for that part, only a funded devnet wallet (reuse
-`scripts/vendor/recon-wallet.json` from Phase 0, or a fresh one).
+Once deployed, `.github/workflows/anchor-ci.yml`'s `anchor-test` job should
+go green on its next run (or `workflow_dispatch` it manually) — it already
+restores the funded devnet wallet from the `DEVNET_WALLET_SECRET_KEY` repo
+secret (same wallet as `scripts/vendor/recon-wallet.json` from Phase 0) and
+runs `tests/goalpost.ts` directly against devnet, no local validator or
+Anchor CLI cloning involved.
+
+Separately, the same funded devnet wallet can drive a fully scripted
+end-to-end run (create → two wallets join → settle with the real captured
+proof → both claims) via `@solana/web3.js`/`@coral-xyz/anchor`, the same way
+`scripts/recon.ts` already talks to devnet.
 
 Record the actual deployed program's devnet USDC-equivalent mint address
 here once created (`docs/ARCHITECTURE.md` §5 - we mint our own demo token
