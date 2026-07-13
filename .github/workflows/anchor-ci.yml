@@ -132,7 +132,7 @@ jobs:
       - name: Dump local validator log on failure
         if: failure()
         run: |
-          echo "--- .anchor/test-ledger/test-ledger-log.txt (tail) ---"
-          tail -n 300 .anchor/test-ledger/test-ledger-log.txt 2>&1 || echo "log file not found"
           echo "--- .anchor/test-ledger/ contents ---"
           ls -la .anchor/test-ledger/ 2>&1 || echo "no .anchor/test-ledger/ dir"
+          echo "--- .anchor/test-ledger/validator.log (real solana-test-validator output, tail) ---"
+          tail -n 300 .anchor/test-ledger/validator.log 2>&1 || echo "validator.log not found"
