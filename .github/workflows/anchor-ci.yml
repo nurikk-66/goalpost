@@ -22,6 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system build dependencies
+        # anchor-cli pulls in the Ledger hardware-wallet stack (hidapi),
+        # whose build script requires the libudev system library via
+        # pkg-config - not present on the bare ubuntu-latest runner.
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
