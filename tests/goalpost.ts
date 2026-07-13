@@ -66,6 +66,20 @@ describe("goalpost", () => {
 
   const dailyScoresMerkleRoots = epochDayPda(REAL_EPOCH_DAY);
 
+  // Market PDAs are seeded by (fixture_id, market_type), and settle() requires
+  // market.fixture_id to match the real captured proof's fixture_id exactly
+  // (FixtureMismatch check) - so fixture_id can't vary between runs, only
+  // market_type (a u8) can. Tests run against real, *persistent* devnet
+  // state (not an ephemeral local validator that resets every run), so a
+  // fixed market_type collides with whatever a previous run already created
+  // ("Allocate: account ... already in use"). Randomizing it per run avoids
+  // that; a same-run collision between the two markets below is prevented
+  // by offsetting one from the other. A collision with a *previous* run is
+  // still possible (1/256 space) but rare and self-diagnosing (the same
+  // "already in use" error), not silently wrong.
+  const MARKET_TYPE_HAPPY_PATH = Math.floor(Math.random() * 256);
+  const MARKET_TYPE_WRONG_RESULT = (MARKET_TYPE_HAPPY_PATH + 1) % 256;
+
   let mint: PublicKey;
 
   // Devnet's public airdrop faucet is rate-limited (Phase 0 hit this
@@ -194,7 +208,7 @@ describe("goalpost", () => {
       await fundWallet(awayBacker.publicKey);
 
       const fixtureId = REAL_FIXTURE_ID;
-      const marketType = 0;
+      const marketType = MARKET_TYPE_HAPPY_PATH;
       market = marketPdaFor(fixtureId, marketType);
       vault = anchor.utils.token.associatedAddress({ mint, owner: market });
       const lockTime = new BN(Math.floor(Date.now() / 1000) + LOCK_TIME_BUFFER_SECONDS);
@@ -359,7 +373,7 @@ describe("goalpost", () => {
     // Same real fixtureId, different market_type purely to get an
     // independent PDA - this market has no joins, it only exists to prove
     // settle() rejects a tampered value against otherwise-real proof nodes.
-    const market = await createLockedMarket(REAL_FIXTURE_ID, 1);
+    const market = await createLockedMarket(REAL_FIXTURE_ID, MARKET_TYPE_WRONG_RESULT);
 
     const args = realSettleArgs();
     const tampered = {

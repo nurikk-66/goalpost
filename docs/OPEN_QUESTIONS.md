@@ -28,12 +28,14 @@ Update as answered.
 - **Why did the local solana-test-validator actually fail?** Never fully
   root-caused - see "Answered" below for what's known and why we stopped
   digging.
-- **Devnet-direct test run not yet green** (see "Answered": pivot decision).
-  Blocked on `programs/goalpost` actually being deployed to devnet - until
-  then `anchor test --skip-local-validator` is expected to fail at whatever
-  instruction first touches the program account (most likely
-  `create_market`), with a program-not-found-style error, not a code bug.
-  This is a real, external blocker, not something to guess around.
+- **Test market PDAs use a random `market_type` (u8) to dodge collisions with
+  previous CI runs' leftover on-chain state** (see "Answered": persistent
+  devnet state). This is a real, if small (1/256), residual collision risk
+  with a *previous* run's market - self-diagnosing ("already in use", not
+  silently wrong) but not eliminated. A more thorough fix would have the
+  test check-and-reuse an existing market instead of always trying to
+  `init` one; not done given the random-slot fix was sufficient and the
+  user set a 2-fix-cycle limit for this session.
 - **Does devnet-direct testing burn through the funded wallet's balance
   over many CI iterations?** Each full run creates a fresh mint + 2-3
   funded keypairs + market/position accounts (~0.15-0.2 SOL all in). Wallet
@@ -92,3 +94,27 @@ Update as answered.
   required (CI restores it from the `DEVNET_WALLET_SECRET_KEY` repo secret
   - the same wallet Phase 0 funded and used). See `docs/DEPLOY.md` and
   `Anchor.toml`.
+
+  Consequence discovered while getting `anchor test` itself green: `anchor
+  test` deploys the program to whatever cluster `[provider]` names
+  *regardless* of `--skip-local-validator` (that flag only skips the local
+  validator, not the deploy step) - so the very first devnet-direct run
+  deployed `programs/goalpost` for real, making the planned manual Solana
+  Playground deploy unnecessary (see `docs/DEPLOY.md`). It also means test
+  fixtures now live on **persistent** real devnet state rather than a fresh
+  ledger every run - market PDAs need care not to collide with a previous
+  run's leftover accounts (see "Unanswered": random `market_type`).
+
+  Getting from "program compiles" to "tests actually execute" surfaced a
+  string of small, real, independently-diagnosed bugs, roughly in this
+  order: `typescript` pinned to an incompatible `^7.0.2` (ts-mocha/ts-node
+  predate its rewrite) → downgraded to 5.6.3; `import { BN } from
+  "@coral-xyz/anchor"` fails under real Node ESM (named export not
+  statically detected) → derive from the namespace import instead →
+  *that* resolves to something that isn't a constructor → import `BN` from
+  its own package (`bn.js`) directly; `__dirname` doesn't exist under ESM
+  → `path.dirname(fileURLToPath(import.meta.url))`; `tsconfig.json`'s
+  `"module": "CommonJS"` rejects `import.meta` outright → `"module"`/
+  `"moduleResolution"`: `"NodeNext"`. None of these were toolchain or
+  Solana issues - all Node ESM/CJS interop mismatches once the root
+  `package.json`'s `"type": "module"` actually mattered for test execution.
