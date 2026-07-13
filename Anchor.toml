@@ -37,6 +37,14 @@ startup_wait = 120000
 
 [test.validator]
 url = "https://api.devnet.solana.com"
+# Anchor's actual invocation passed --bind-address 0.0.0.0, which crashes
+# solana-test-validator on this runner ("UnspecifiedIpAddr(0.0.0.0)" panic
+# in solana_gossip::node::Node::new_with_external_ip - it can't resolve an
+# external IP for gossip when bound to the unspecified address). Pinning
+# both explicitly to loopback since this validator only needs to be
+# reachable locally.
+bind_address = "127.0.0.1"
+gossip_host = "127.0.0.1"
 
 [[test.validator.clone]]
 address = "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"
