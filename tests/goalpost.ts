@@ -21,7 +21,7 @@ import * as anchor from "@coral-xyz/anchor";
 // entirely - a default import of a CJS module always maps to the whole
 // `module.exports`, no named-property detection involved.
 import BN from "bn.js";
-import { Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
+import { ComputeBudgetProgram, Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
@@ -41,6 +41,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TXORACLE_PROGRAM_ID = new PublicKey("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
 const REAL_EPOCH_DAY = 20646; // covers the real captured proof's ts
+
+// validate_stat_v2 is expensive - Phase 0's recon needed this same limit just
+// to *simulate* it off-chain (docs/ARCHITECTURE.md §3's flagged compute-budget
+// risk, confirmed for real: the first on-chain attempt exhausted Solana's
+// default 200,000 CU mid-verification, "exceeded CUs meter at BPF
+// instruction"). Every settle() call needs this raised explicitly.
+const SETTLE_COMPUTE_UNIT_LIMIT = 1_400_000;
 
 function proofNodes(nodes: { hash: number[]; isRightSibling: boolean }[]) {
   return nodes.map((n) => ({ hash: n.hash, isRightSibling: n.isRightSibling }));
@@ -290,6 +297,7 @@ describe("goalpost", () => {
           dailyScoresMerkleRoots,
           txoracleProgram: TXORACLE_PROGRAM_ID,
         })
+        .preInstructions([ComputeBudgetProgram.setComputeUnitLimit({ units: SETTLE_COMPUTE_UNIT_LIMIT })])
         .rpc();
 
       const marketAccount = await program.account.market.fetch(market);
@@ -418,24 +426,29 @@ describe("goalpost", () => {
           dailyScoresMerkleRoots,
           txoracleProgram: TXORACLE_PROGRAM_ID,
         })
+        .preInstructions([ComputeBudgetProgram.setComputeUnitLimit({ units: SETTLE_COMPUTE_UNIT_LIMIT })])
         .rpc();
       assert.fail("expected settle() to reject a tampered stat value");
     } catch (e: any) {
       // On real devnet, a failed CPI often surfaces as a generic
       // "Simulation failed" SendTransactionError whose top-level message is
-      // truncated - the actual program logs (where our StatValidationFailed
-      // error code appears, once the CPI genuinely runs and rejects the
-      // tampered value) live on e.logs, not in String(e). Asserting on that
-      // combined text - not just "settle() threw something" - is what
-      // actually distinguishes a real proof-rejection from an unrelated
-      // failure (e.g. a missing-account bug previously made this test pass
-      // for the wrong reason: every settle() call failed before the CPI
-      // ever ran, so any error looked like a "pass").
+      // truncated - the actual program logs live on e.logs, not in
+      // String(e). Confirmed empirically: a genuine tampered-value
+      // rejection surfaces as TxLINE's *own* on-chain error
+      // ("AnchorError thrown in programs/txoracle/src/utils.rs:...
+      // Error Code: InvalidStatProof"), which is the real proof-verification
+      // logic actually running and correctly rejecting the tampered value -
+      // not our own wrapping StatValidationFailed necessarily surviving into
+      // the client-visible error. Accepting either name is what actually
+      // distinguishes a real proof-rejection from an unrelated failure
+      // (e.g. a missing-account bug previously made this test pass for the
+      // wrong reason: every settle() call failed before the CPI ever ran,
+      // so any error looked like a "pass").
       const details = [String(e), ...(Array.isArray(e?.logs) ? e.logs : [])].join("\n");
-      assert.include(
+      assert.match(
         details,
-        "StatValidationFailed",
-        `expected settle() to fail specifically with StatValidationFailed (a genuine proof rejection), got:\n${details.slice(0, 1000)}`
+        /StatValidationFailed|InvalidStatProof/,
+        `expected settle() to fail with a genuine proof-rejection error (ours or TxLINE's own), got:\n${details.slice(0, 1000)}`
       );
     }
 
