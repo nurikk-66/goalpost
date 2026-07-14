@@ -1,9 +1,10 @@
 name: Anchor Build & Test
 
 # programs/goalpost is developed without a local Rust/Solana/Anchor
-# toolchain (see docs/ARCHITECTURE.md) - this workflow is the actual build
-# and test verification for the program. Deploys are done manually via
-# Solana Playground (beta.solpg.io), not from CI.
+# toolchain (see docs/ARCHITECTURE.md) - this workflow is the actual build,
+# deploy, and test verification for the program. `anchor test` itself
+# deploys to devnet (see docs/DEPLOY.md) - there is no separate manual
+# deploy step.
 #
 # Split into two jobs deliberately: actions/cache only saves on job
 # *success* (its post-save hook is gated on success()), so while we're
@@ -16,10 +17,7 @@ name: Anchor Build & Test
 # local-validator startup crashes that didn't converge after real fix
 # attempts; devnet-direct just works today, at the cost of speed/
 # determinism and needing a funded wallet, restored here from the
-# DEVNET_WALLET_SECRET_KEY repo secret). This requires programs/goalpost to
-# actually be deployed to devnet first (manually, via Solana Playground -
-# see docs/DEPLOY.md) - until that happens this job is expected to fail at
-# `anchor test` with a program-not-found-style error, not a toolchain issue.
+# DEVNET_WALLET_SECRET_KEY repo secret).
 
 on:
   push:
@@ -139,6 +137,18 @@ jobs:
 
       - name: anchor build
         run: anchor build
+
+      - name: Upload generated IDL
+        # Only source of the real IDL/types - no local Anchor toolchain
+        # (see docs/ARCHITECTURE.md), so packages/sdk imports this artifact
+        # rather than a hand-maintained copy.
+        uses: actions/upload-artifact@v4
+        with:
+          name: goalpost-idl
+          path: |
+            target/idl/goalpost.json
+            target/types/goalpost.ts
+          retention-days: 14
 
       - name: anchor test
         run: anchor test --skip-local-validator
