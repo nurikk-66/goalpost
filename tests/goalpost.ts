@@ -71,14 +71,28 @@ describe("goalpost", () => {
   // (FixtureMismatch check) - so fixture_id can't vary between runs, only
   // market_type (a u8) can. Tests run against real, *persistent* devnet
   // state (not an ephemeral local validator that resets every run), so a
-  // fixed market_type collides with whatever a previous run already created
-  // ("Allocate: account ... already in use"). Randomizing it per run avoids
-  // that; a same-run collision between the two markets below is prevented
-  // by offsetting one from the other. A collision with a *previous* run is
-  // still possible (1/256 space) but rare and self-diagnosing (the same
-  // "already in use" error), not silently wrong.
-  const MARKET_TYPE_HAPPY_PATH = Math.floor(Math.random() * 256);
-  const MARKET_TYPE_WRONG_RESULT = (MARKET_TYPE_HAPPY_PATH + 1) % 256;
+  // fixed (or even randomly-drawn-once) market_type can collide with
+  // whatever a previous run already created ("Allocate: account ... already
+  // in use") - a one-shot random draw hit exactly this, re-colliding with an
+  // earlier run's market on a 1/256 chance. Checking the candidate account
+  // on-chain first and retrying on a real hit makes this actually
+  // collision-proof rather than merely unlikely to collide.
+  async function pickUnusedMarketType(fixtureId: BN, exclude: Set<number> = new Set()): Promise<number> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const candidate = Math.floor(Math.random() * 256);
+      if (exclude.has(candidate)) continue;
+      const [pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("market"), fixtureId.toArrayLike(Buffer, "le", 8), Buffer.from([candidate])],
+        program.programId
+      );
+      const info = await provider.connection.getAccountInfo(pda);
+      if (!info) return candidate;
+    }
+    throw new Error("could not find an unused market_type for fixtureId after 20 attempts");
+  }
+
+  let marketTypeHappyPath: number;
+  let marketTypeWrongResult: number;
 
   let mint: PublicKey;
 
@@ -189,6 +203,8 @@ describe("goalpost", () => {
 
   before(async () => {
     mint = await createMint(provider.connection, payer, provider.wallet.publicKey, null, 6);
+    marketTypeHappyPath = await pickUnusedMarketType(REAL_FIXTURE_ID);
+    marketTypeWrongResult = await pickUnusedMarketType(REAL_FIXTURE_ID, new Set([marketTypeHappyPath]));
   });
 
   describe("happy path", () => {
@@ -208,7 +224,7 @@ describe("goalpost", () => {
       await fundWallet(awayBacker.publicKey);
 
       const fixtureId = REAL_FIXTURE_ID;
-      const marketType = MARKET_TYPE_HAPPY_PATH;
+      const marketType = marketTypeHappyPath;
       market = marketPdaFor(fixtureId, marketType);
       vault = anchor.utils.token.associatedAddress({ mint, owner: market });
       const lockTime = new BN(Math.floor(Date.now() / 1000) + LOCK_TIME_BUFFER_SECONDS);
@@ -373,7 +389,7 @@ describe("goalpost", () => {
     // Same real fixtureId, different market_type purely to get an
     // independent PDA - this market has no joins, it only exists to prove
     // settle() rejects a tampered value against otherwise-real proof nodes.
-    const market = await createLockedMarket(REAL_FIXTURE_ID, MARKET_TYPE_WRONG_RESULT);
+    const market = await createLockedMarket(REAL_FIXTURE_ID, marketTypeWrongResult);
 
     const args = realSettleArgs();
     const tampered = {
