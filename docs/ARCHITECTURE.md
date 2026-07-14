@@ -157,7 +157,17 @@ docs pages alone:
 4. CPI into TxLINE's `validate_stat_v2` (devnet program
    `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`, discriminator
    `[208,215,194,214,241,71,246,178]` from the real IDL), passing the
-   `daily_scores_merkle_roots` account plus the payload/strategy above.
+   `daily_scores_merkle_roots` account plus the payload/strategy above. The
+   `Settle` accounts struct also lists the txoracle program itself
+   (`txoracle_program`, constrained via `address =
+   txoracle::TXORACLE_PROGRAM_ID`) — without it, Solana's runtime can't
+   resolve the CPI target at all (`invoke()` fails with "Unknown program
+   ...", not a proof-verification error; this was the actual bug behind
+   `anchor test`'s first real failures against live devnet — see
+   `docs/OPEN_QUESTIONS.md`). There's no published Anchor CPI crate for
+   txoracle, so this is a plain `UncheckedAccount` with an address
+   constraint rather than the typed `Program<'info, T>` wrapper
+   `token_program` gets for free from `anchor-spl`.
 5. On CPI success: compute `Outcome` as above, write `market.outcome`,
    `settlement_home_goals`/`settlement_away_goals`,
    `settlement_epoch_day`, `settled_at`, `status = Settled`.

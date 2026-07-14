@@ -124,7 +124,11 @@ pub fn daily_scores_merkle_roots_pda(epoch_day: u16) -> (Pubkey, u8) {
 /// caller-supplied outcome claim - see docs/ARCHITECTURE.md §3. We derive
 /// the match outcome ourselves, in `instructions::settle`, from the values
 /// this call authenticates - not from whether some predicate held.
-pub fn validate_stat_v2<'info>(daily_scores_merkle_roots: &AccountInfo<'info>, payload: StatValidationInput) -> Result<()> {
+pub fn validate_stat_v2<'info>(
+    daily_scores_merkle_roots: &AccountInfo<'info>,
+    txoracle_program: &AccountInfo<'info>,
+    payload: StatValidationInput,
+) -> Result<()> {
     let always_true_predicate = TraderPredicate {
         threshold: -999_999,
         comparison: Comparison::GreaterThan,
@@ -153,7 +157,8 @@ pub fn validate_stat_v2<'info>(daily_scores_merkle_roots: &AccountInfo<'info>, p
         data,
     };
 
-    invoke(&ix, &[daily_scores_merkle_roots.clone()]).map_err(|_| error!(GoalpostError::StatValidationFailed))?;
+    invoke(&ix, &[daily_scores_merkle_roots.clone(), txoracle_program.clone()])
+        .map_err(|_| error!(GoalpostError::StatValidationFailed))?;
 
     Ok(())
 }

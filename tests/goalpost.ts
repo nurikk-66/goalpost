@@ -288,6 +288,7 @@ describe("goalpost", () => {
           settler: provider.wallet.publicKey,
           market,
           dailyScoresMerkleRoots,
+          txoracleProgram: TXORACLE_PROGRAM_ID,
         })
         .rpc();
 
@@ -415,6 +416,7 @@ describe("goalpost", () => {
           settler: provider.wallet.publicKey,
           market,
           dailyScoresMerkleRoots,
+          txoracleProgram: TXORACLE_PROGRAM_ID,
         })
         .rpc();
       assert.fail("expected settle() to reject a tampered stat value");
@@ -422,13 +424,19 @@ describe("goalpost", () => {
       // On real devnet, a failed CPI often surfaces as a generic
       // "Simulation failed" SendTransactionError whose top-level message is
       // truncated - the actual program logs (where our StatValidationFailed
-      // error code would appear) live on e.logs, not in String(e). Rather
-      // than depend on exactly how deep Anchor's error translation reaches
-      // in every environment, assert on the concrete on-chain effect we
-      // actually care about: settle() did not succeed, so the market stays
-      // Locked (checked below) - that's what "wrong-result-rejected" means.
+      // error code appears, once the CPI genuinely runs and rejects the
+      // tampered value) live on e.logs, not in String(e). Asserting on that
+      // combined text - not just "settle() threw something" - is what
+      // actually distinguishes a real proof-rejection from an unrelated
+      // failure (e.g. a missing-account bug previously made this test pass
+      // for the wrong reason: every settle() call failed before the CPI
+      // ever ran, so any error looked like a "pass").
       const details = [String(e), ...(Array.isArray(e?.logs) ? e.logs : [])].join("\n");
-      console.log(`[wrong-result-rejected] settle() failed as expected: ${details.slice(0, 500)}`);
+      assert.include(
+        details,
+        "StatValidationFailed",
+        `expected settle() to fail specifically with StatValidationFailed (a genuine proof rejection), got:\n${details.slice(0, 1000)}`
+      );
     }
 
     const marketAccount = await program.account.market.fetch(market);

@@ -5,35 +5,6 @@ Update as answered.
 
 ## Unanswered
 
-- **BLOCKING BUG, root-caused, not yet fixed (session ended at the 2-fix-cycle
-  limit): `settle`'s CPI into `validate_stat_v2` fails with "Unknown program
-  6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"** during real devnet
-  simulation. Root cause: `Settle`'s `#[derive(Accounts)]` struct
-  (`programs/goalpost/src/instructions/settle.rs`) never lists the txoracle
-  program itself as an account — only `daily_scores_merkle_roots` — so
-  Solana's runtime has no way to resolve/load that program when
-  `txoracle::validate_stat_v2`'s `invoke()` call tries to jump into it. Fix
-  (not yet applied): add a `txoracle_program: UncheckedAccount<'info>`
-  (constrained via `#[account(address = txoracle::TXORACLE_PROGRAM_ID)]`) to
-  `Settle`, include it in `invoke()`'s account_infos list in
-  `txoracle.rs::validate_stat_v2`, and pass it from the client
-  (`tests/goalpost.ts`'s `.accounts({...})` call). This is the standard,
-  well-understood pattern for CPI-ing into a program without an Anchor CPI
-  crate for it (compare to how `token_program: Program<'info, Token>` works
-  for SPL calls, which we get "for free" via `anchor-spl`'s typed program
-  wrapper — txoracle has no such wrapper since there's no published crate).
-  **This is the actual next step, not a design question** - flagged here
-  only because it's the concrete unblocking action for the next session.
-- **Important corollary of the above: the "wrong-result-rejected" test
-  currently passes for the wrong reason.** Its settle() call also hits
-  "Unknown program" (same missing-account bug), not a genuine
-  Merkle-proof-verification rejection - the test's intentionally lenient
-  catch block (any error + market stays Locked) can't currently distinguish
-  "the CPI never even ran" from "the CPI ran and correctly rejected a
-  tampered value." Once the missing-account bug above is fixed, this test
-  needs to be re-verified for real (ideally by asserting a scenario where
-  the *only* difference is the tampered stat value, so a passing CPI call
-  followed by mismatched values is the only way to reach the error).
 - **Does `settle` need `validate_fixture` in addition to `validate_stat_v2`?**
   `validate_stat_v2` proves a stat value against the daily scores Merkle root for a
   `fixture_id`; it does not independently prove the fixture itself (teams, kickoff
@@ -73,6 +44,24 @@ Update as answered.
 
 ## Answered
 
+- **Why did `settle`'s CPI into `validate_stat_v2` fail with "Unknown program
+  6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J" against real devnet?**
+  `Settle`'s `#[derive(Accounts)]` struct never listed the txoracle program
+  itself — only `daily_scores_merkle_roots` — so Solana's runtime had no way
+  to resolve/load that program when `invoke()` tried to jump into it. Fixed
+  by adding a `txoracle_program: UncheckedAccount<'info>` (constrained via
+  `#[account(address = txoracle::TXORACLE_PROGRAM_ID)]`) to `Settle`,
+  threading it through `invoke()`'s account_infos list in
+  `txoracle.rs::validate_stat_v2`, and passing it from the client. Standard
+  pattern for CPI-ing into a program with no published Anchor crate
+  (`token_program: Program<'info, Token>` gets the typed equivalent for free
+  from `anchor-spl`; txoracle has no such wrapper).
+
+  Corollary this also fixed: the "wrong-result-rejected" test previously
+  passed for the wrong reason (same missing-account bug meant its settle()
+  call failed before the CPI ever ran, not because it detected the tampered
+  value) - tightened to assert `"StatValidationFailed"` specifically appears
+  in the failure (message + logs), not just that *some* error was thrown.
 - **Is CPI into on-chain validation feasible?** Yes. `validate_stat` /
   `validate_stat_v2` / `validate_stat_v3` are plain instructions on a deployed
   devnet program (`6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`) with a public IDL,

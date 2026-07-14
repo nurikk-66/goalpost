@@ -23,6 +23,14 @@ pub struct Settle<'info> {
     /// account that isn't real TxLINE-owned root data simply fails
     /// downstream inside `validate_stat_v2`.
     pub daily_scores_merkle_roots: UncheckedAccount<'info>,
+
+    /// CHECK: must be the real TxLINE txoracle program - the CPI target.
+    /// There's no published Anchor CPI crate for it (see txoracle.rs), so we
+    /// can't use the typed `Program<'info, T>` wrapper the way
+    /// `token_program: Program<'info, Token>` works for SPL calls; this
+    /// address constraint is the equivalent safety check.
+    #[account(address = txoracle::TXORACLE_PROGRAM_ID)]
+    pub txoracle_program: UncheckedAccount<'info>,
 }
 
 /// Verifies the real match result via CPI, then *derives* the outcome from
@@ -76,7 +84,11 @@ pub(crate) fn handler(
         stats: vec![home_stat, away_stat],
     };
 
-    txoracle::validate_stat_v2(&ctx.accounts.daily_scores_merkle_roots.to_account_info(), payload)?;
+    txoracle::validate_stat_v2(
+        &ctx.accounts.daily_scores_merkle_roots.to_account_info(),
+        &ctx.accounts.txoracle_program.to_account_info(),
+        payload,
+    )?;
 
     let outcome = match home_goals.cmp(&away_goals) {
         std::cmp::Ordering::Greater => Outcome::Home,
