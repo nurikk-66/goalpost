@@ -7,9 +7,13 @@ installed. Grounded in the real TxLINE interface documented in
 `fixtures/samples/scores_stat_validation.json`) — nothing here is speculative
 about what TxLINE exposes, only about how our program uses it.
 
-Not yet verified empirically (needs the actual toolchain + a devnet build):
-CPI compute cost, and whether `validate_stat` reverts on a false predicate or
-returns a bool we must check. Both are called out below where they matter.
+**Verified (2026-07-14) against real devnet, not just design**: CPI compute
+cost (`validate_stat_v2` needs ~1.4M compute units — client must set
+`ComputeBudgetProgram.setComputeUnitLimit` before calling `settle`) and
+`validate_stat_v2` does revert (CPI `Err`) on a failed predicate, surfaced as
+TxLINE's own `InvalidStatProof`. All 4 required tests pass live on devnet
+(`6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr`) — see `docs/TRUST_MODEL.md`
+"Status" for the full result.
 
 ## 1. State machine & accounts
 

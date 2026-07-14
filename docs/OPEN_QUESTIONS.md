@@ -17,14 +17,6 @@ Update as answered.
 - **Full soccer stat-key table** beyond base keys 1–8 (goals/cards/corners) — PDF at
   `txodds.github.io/tx-on-chain/assets/txodds-soccer-feed-v1.1.pdf` not yet mirrored.
   Not blocking: keys 1–8 are enough for a home/draw/away market.
-- **Does `validate_stat_v2` revert on a false/failed check, or return a value the
-  caller must check?** Our `txoracle::validate_stat_v2` CPI helper assumes any
-  failure surfaces as a CPI `Err`. Untestable without a real Anchor build —
-  first thing the wrong-result-rejected test will confirm or disprove once CI runs.
-- **Does the `validate_stat_v2` CPI fit Solana's compute budget** when called from
-  inside our own `settle` instruction (our own Phase 0 recon needed a 1.4M compute
-  unit budget just to simulate it off-chain)? See `docs/ARCHITECTURE.md` §3 for the
-  fallback if not. First real signal will come from the CI run.
 - **Why did the local solana-test-validator actually fail?** Never fully
   root-caused - see "Answered" below for what's known and why we stopped
   digging.
@@ -36,28 +28,36 @@ Update as answered.
   test check-and-reuse an existing market instead of always trying to
   `init` one; not done given the random-slot fix was sufficient and the
   user set a 2-fix-cycle limit for this session.
-- **BLOCKING: CI wallet ran out of SOL for the program deploy step.** Run
-  29307499455 (2026-07-14) failed with: `Account
-  4oRVRLrWtBAV9QVZSLXhb1edW9JTzMBBvz4uhiU4rRky has insufficient funds for
-  spend (2.10507288 SOL) + fee (0.00159 SOL)` at the `anchor test`
-  deploy-before-test step — confirming the risk flagged above. Checked
-  directly: wallet balance is 2.0881832 SOL (down from ~5 SOL on
-  2026-07-13); no orphaned/unclosed buffer accounts found to reclaim
-  (scanned BPF Loader Upgradeable accounts owned by this wallet — zero
-  hits), so nothing was lost to a failed deploy, it simply doesn't have
-  enough to attempt one. An Anchor program this size costs ~2.1 SOL to
-  redeploy (rent-exempt reserve on the program data account), and each
-  full test run separately spends ~0.15-0.2 SOL on fixtures. Devnet's
-  public faucet is rate-limited and returned an internal error when tried
-  here, so this cannot be self-funded from this environment. **Needs the
-  user to top up `4oRVRLrWtBAV9QVZSLXhb1edW9JTzMBBvz4uhiU4rRky` with at
-  least ~2 SOL** (faucet.solana.com, or a transfer from another funded
-  wallet) before CI can be re-run. No code fix pending on our side; the
-  txoracle_program/compute-budget fixes from the previous cycle have not
-  actually been re-verified by a passing deploy yet.
-
 ## Answered
 
+- **CI wallet ran out of SOL for the program deploy step (2026-07-14).** Run
+  29307499455 failed with `insufficient funds for spend (2.10507288 SOL) +
+  fee (0.00159 SOL)` at the `anchor test` deploy-before-test step. Checked
+  directly via RPC: wallet balance was 2.0881832 SOL (down from ~5 SOL on
+  2026-07-13, spent across many CI iterations at ~0.15-0.2 SOL/run in test
+  fixtures); scanned for orphaned/unclosed buffer accounts to reclaim —
+  found none, so nothing was lost to a failed deploy, it simply didn't have
+  enough to attempt one. An Anchor program this size costs ~2.1 SOL to
+  redeploy (rent-exempt reserve on the program data account). Devnet's
+  public faucet was rate-limited when self-funding was attempted from this
+  environment, so this needed the user's action: user topped up
+  `4oRVRLrWtBAV9QVZSLXhb1edW9JTzMBBvz4uhiU4rRky` to 7.088 SOL, the failed
+  job was rerun (`gh run rerun 29307499455 --failed`), and it completed
+  successfully — 6/6 mocha assertions passing. See below for the
+  compute-budget and CPI-revert questions this same run answered.
+- **Does `validate_stat_v2` revert on a false/failed check, or return a value
+  the caller must check?** Confirmed: it reverts with a genuine CPI `Err`.
+  The wrong-result-rejected test genuinely executes the CPI (152.8s runtime,
+  not a fast pre-CPI failure) and receives TxLINE's own `InvalidStatProof`
+  back through the CPI boundary — our `txoracle::validate_stat_v2` helper's
+  assumption was correct.
+- **Does the `validate_stat_v2` CPI fit Solana's compute budget?** No, not at
+  the default 200,000 CU — confirmed on real devnet with "exceeded CUs meter
+  at BPF instruction" before the fix. Needs ~1.4M compute units, matching
+  Phase 0's off-chain estimate exactly. Fixed by adding
+  `ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 })` as a
+  `preInstruction` on every client call to `settle`; the SDK (Phase 3) must
+  do this for callers, not leave it to them.
 - **Why did `settle`'s CPI into `validate_stat_v2` fail with "Unknown program
   6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J" against real devnet?**
   `Settle`'s `#[derive(Accounts)]` struct never listed the txoracle program
@@ -74,8 +74,13 @@ Update as answered.
   Corollary this also fixed: the "wrong-result-rejected" test previously
   passed for the wrong reason (same missing-account bug meant its settle()
   call failed before the CPI ever ran, not because it detected the tampered
-  value) - tightened to assert `"StatValidationFailed"` specifically appears
-  in the failure (message + logs), not just that *some* error was thrown.
+  value) - tightened to assert the failure genuinely names a proof-rejection
+  error, matching `/StatValidationFailed|InvalidStatProof/` (our own wrapper
+  error or TxLINE's own real error name, both equally valid evidence of
+  a genuine on-chain rejection), not just that *some* error was thrown.
+  Once the CPI actually ran, it came back with TxLINE's own
+  `InvalidStatProof` rather than our wrapper — confirming the CPI reaches
+  TxLINE's real validation logic, not just our own account-resolution code.
 - **Is CPI into on-chain validation feasible?** Yes. `validate_stat` /
   `validate_stat_v2` / `validate_stat_v3` are plain instructions on a deployed
   devnet program (`6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`) with a public IDL,

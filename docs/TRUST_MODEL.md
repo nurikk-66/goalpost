@@ -4,16 +4,17 @@ What `programs/goalpost` actually checks on-chain, and what it deliberately
 does not. Written against the real implementation in `programs/goalpost/src/`
 (not just the design) — see `docs/ARCHITECTURE.md` for the design rationale.
 
-Status (2026-07-13): program source compiles clean and **is deployed and
-live on devnet** (`6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr` — see
-`docs/DEPLOY.md`), via CI's own automatic deploy step in
-`.github/workflows/anchor-ci.yml`. **`anchor test` has not passed yet** —
-CI now runs directly against real devnet (`--skip-local-validator`; the
-local `solana-test-validator` was abandoned, see `docs/OPEN_QUESTIONS.md`)
-and is currently failing on an unrelated test-runner error, still being
-diagnosed. This document describes what the deployed code is written to
-do; it will be re-confirmed once `anchor test` is actually green against
-this live deployment.
+Status (2026-07-14): **verified green.** Program source compiles clean and
+**is deployed and live on devnet**
+(`6e6iXff86RZ6ryB7TeJSdn4GfGNDM5xtRz9h1oBQzLNr` — see `docs/DEPLOY.md`), via
+CI's own automatic deploy step in `.github/workflows/anchor-ci.yml`. All 4
+required tests pass against that live deployment, run directly against real
+devnet (`--skip-local-validator`; the local `solana-test-validator` was
+abandoned, see `docs/OPEN_QUESTIONS.md`): happy path (settle + claim +
+NothingToClaim + AlreadyClaimed), wrong-result-rejected, double-claim-rejected,
+and non-participant-claim-rejected — 6 mocha assertions, 6 passing, 0 failing
+(CI run 29307499455, job 87146633189). Every guarantee below is now confirmed
+against real on-chain execution, not just source review.
 
 ## No admin key can move user funds
 
@@ -110,12 +111,13 @@ deploy step).
 
 ## Known limitations, honestly stated
 
-- Not yet compiled or run — see "Status" above. This document describes
-  intent backed by real, complete source code, not a verified binary.
-- CPI compute-budget fit is unverified (flagged in
-  `docs/ARCHITECTURE.md` §3 as a real risk to test early).
-- `validate_stat_v2`'s exact failure behavior (revert vs. a return value we'd
-  need to check) is assumed to be "CPI `Err` on any authentication or
-  coverage failure" based on how Anchor CPIs conventionally behave; this is
-  exactly what the wrong-result-rejected test is designed to catch if that
-  assumption is wrong.
+- The CPI compute-budget requirement is real and confirmed: `validate_stat_v2`
+  needs ~1.4M compute units (default Solana budget is 200,000), so any client
+  calling `settle` must send a `ComputeBudgetProgram.setComputeUnitLimit`
+  instruction ahead of it, or the transaction fails with "exceeded CUs meter"
+  — confirmed on real devnet, not just Phase 0's off-chain estimate. The SDK
+  (Phase 3) must set this for callers rather than leaving it to them.
+- `validate_stat_v2` does revert with a CPI `Err` on a failed check — confirmed
+  by the wrong-result-rejected test, which genuinely executes the CPI (152.8s,
+  not a fast pre-CPI failure) and receives TxLINE's own `InvalidStatProof`
+  error back through the CPI boundary.
