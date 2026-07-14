@@ -36,11 +36,25 @@ Update as answered.
   test check-and-reuse an existing market instead of always trying to
   `init` one; not done given the random-slot fix was sufficient and the
   user set a 2-fix-cycle limit for this session.
-- **Does devnet-direct testing burn through the funded wallet's balance
-  over many CI iterations?** Each full run creates a fresh mint + 2-3
-  funded keypairs + market/position accounts (~0.15-0.2 SOL all in). Wallet
-  had ~5 SOL as of 2026-07-13. Fine for now; revisit (refund the wallet, or
-  add account-closing to reclaim rent) if it becomes a real constraint.
+- **BLOCKING: CI wallet ran out of SOL for the program deploy step.** Run
+  29307499455 (2026-07-14) failed with: `Account
+  4oRVRLrWtBAV9QVZSLXhb1edW9JTzMBBvz4uhiU4rRky has insufficient funds for
+  spend (2.10507288 SOL) + fee (0.00159 SOL)` at the `anchor test`
+  deploy-before-test step — confirming the risk flagged above. Checked
+  directly: wallet balance is 2.0881832 SOL (down from ~5 SOL on
+  2026-07-13); no orphaned/unclosed buffer accounts found to reclaim
+  (scanned BPF Loader Upgradeable accounts owned by this wallet — zero
+  hits), so nothing was lost to a failed deploy, it simply doesn't have
+  enough to attempt one. An Anchor program this size costs ~2.1 SOL to
+  redeploy (rent-exempt reserve on the program data account), and each
+  full test run separately spends ~0.15-0.2 SOL on fixtures. Devnet's
+  public faucet is rate-limited and returned an internal error when tried
+  here, so this cannot be self-funded from this environment. **Needs the
+  user to top up `4oRVRLrWtBAV9QVZSLXhb1edW9JTzMBBvz4uhiU4rRky` with at
+  least ~2 SOL** (faucet.solana.com, or a transfer from another funded
+  wallet) before CI can be re-run. No code fix pending on our side; the
+  txoracle_program/compute-budget fixes from the previous cycle have not
+  actually been re-verified by a passing deploy yet.
 
 ## Answered
 
