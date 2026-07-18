@@ -25,8 +25,8 @@ export function ScoreboardHeader({
         </p>
         <ConnectionStatusPill status={status} />
       </div>
-      <div className="relative mt-3 flex items-end justify-between gap-4">
-        <p className="font-mono text-2xl font-bold leading-none text-gp-text sm:text-3xl">
+      <div className="relative mt-3 flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <p className="font-mono text-lg font-bold leading-none text-gp-text sm:text-3xl">
           {fixture.participant1} <span className="text-gp-text-faint">vs</span> {fixture.participant2}
         </p>
         {/* The one deliberate exception to monospace-everywhere (docs/DESIGN.md): the live score numeral, the single place Big Shoulders still appears. */}

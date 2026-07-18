@@ -22,7 +22,7 @@ export default function HomePage() {
 
       <header className="relative mb-10">
         <p className="font-mono text-xs tracking-[0.2em] text-gp-text-dim uppercase">Goalpost</p>
-        <h1 className="font-mono text-4xl leading-none font-bold tracking-tight text-gp-text sm:text-5xl">
+        <h1 className="font-mono text-3xl leading-tight font-bold tracking-tight text-gp-text sm:text-5xl sm:leading-none">
           Every result comes
           <br />
           with a receipt.
@@ -47,21 +47,21 @@ export default function HomePage() {
                     : "border-gp-line-soft bg-gp-surface/50"
                 }`}
               >
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-mono text-[11px] tracking-wide text-gp-text-faint">
                       {fixture.competition} · #{fixture.fixtureId}
                     </p>
-                    <p className="font-mono text-xl font-bold text-gp-text">
+                    <p className="font-mono text-lg font-bold text-gp-text sm:text-xl">
                       {fixture.participant1} <span className="text-gp-text-faint">vs</span> {fixture.participant2}
                     </p>
                   </div>
                   {fixture.interactive ? (
-                    <span className="shrink-0 border border-gp-amber px-2 py-1 font-mono text-[10px] tracking-wider text-gp-amber uppercase">
+                    <span className="shrink-0 self-start border border-gp-amber px-2 py-1 font-mono text-[10px] tracking-wider text-gp-amber uppercase">
                       Live demo
                     </span>
                   ) : (
-                    <span className="shrink-0 font-mono text-[10px] tracking-wider text-gp-text-faint uppercase">Preview</span>
+                    <span className="shrink-0 self-start font-mono text-[10px] tracking-wider text-gp-text-faint uppercase">Preview</span>
                   )}
                 </div>
                 {fixture.finalScore && (
