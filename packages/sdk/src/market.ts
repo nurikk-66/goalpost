@@ -35,6 +35,8 @@ export interface CreatedMarket {
   market: PublicKey;
   /** The market's escrow ATA (mint x market PDA) - Anchor derives this on-chain from `market`+`mint`, computed here only so callers don't have to re-derive it themselves. */
   vault: PublicKey;
+  /** Transaction signature - build an explorer link with it (e.g. for a UI receipt). */
+  signature: string;
 }
 
 /**
@@ -57,8 +59,9 @@ export async function createMarket(program: anchor.Program<Goalpost>, params: Cr
   const market = marketPda(fixtureId, params.marketType);
   const vault = anchor.utils.token.associatedAddress({ mint: params.mint, owner: market });
 
+  let signature: string;
   try {
-    await program.methods
+    signature = await program.methods
       .createMarket(fixtureId, params.marketType, new BN(params.lockTime))
       .accountsPartial({
         creator: params.creator,
@@ -70,7 +73,7 @@ export async function createMarket(program: anchor.Program<Goalpost>, params: Cr
     throw parseGoalpostError(e);
   }
 
-  return { market, vault };
+  return { market, vault, signature };
 }
 
 export interface JoinParams {
@@ -83,12 +86,19 @@ export interface JoinParams {
   vault: PublicKey;
 }
 
-/** Backs an outcome in an Open market. Returns the caller's Position PDA. */
-export async function join(program: anchor.Program<Goalpost>, params: JoinParams): Promise<PublicKey> {
+export interface JoinResult {
+  /** The caller's Position PDA. */
+  position: PublicKey;
+  signature: string;
+}
+
+/** Backs an outcome in an Open market. */
+export async function join(program: anchor.Program<Goalpost>, params: JoinParams): Promise<JoinResult> {
   const position = positionPda(params.market, params.participant);
 
+  let signature: string;
   try {
-    await program.methods
+    signature = await program.methods
       .join(outcomeToAnchorEnum(params.outcome), new BN(params.amount))
       .accountsPartial({
         participant: params.participant,
@@ -101,7 +111,7 @@ export async function join(program: anchor.Program<Goalpost>, params: JoinParams
     throw parseGoalpostError(e);
   }
 
-  return position;
+  return { position, signature };
 }
 
 /**
@@ -109,9 +119,9 @@ export async function join(program: anchor.Program<Goalpost>, params: JoinParams
  * requirement beyond the fee payer (see docs/TRUST_MODEL.md) - anyone can
  * trigger this, it's a pure state transition.
  */
-export async function lockMarket(program: anchor.Program<Goalpost>, market: PublicKey): Promise<void> {
+export async function lockMarket(program: anchor.Program<Goalpost>, market: PublicKey): Promise<string> {
   try {
-    await program.methods.lockMarket().accounts({ market }).rpc();
+    return await program.methods.lockMarket().accounts({ market }).rpc();
   } catch (e) {
     throw parseGoalpostError(e);
   }

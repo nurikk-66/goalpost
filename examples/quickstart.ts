@@ -95,6 +95,7 @@ async function main() {
   await mintTo(connection, wallet, mint, backerAta, wallet.publicKey, 1_000_000);
   await join(program, { participant: wallet.publicKey, market, outcome: "home", amount: 1_000_000, participantTokenAccount: backerAta, vault });
   console.log(`      Market ${market.toBase58()} created, joined backing Home with 1.00 tokens.`);
+  console.log(`      Explorer: https://explorer.solana.com/address/${market.toBase58()}?cluster=devnet`);
 
   console.log(`[3/6] Waiting for lock_time, then locking...`);
   await new Promise((r) => setTimeout(r, LOCK_TIME_BUFFER_SECONDS * 1000 + 2000));
@@ -103,9 +104,10 @@ async function main() {
   console.log("[4/6] Fetching the real result + Merkle proof, then settling on-chain...");
   const result = await txline.getResultWithProof(FIXTURE_ID);
   console.log(`      Real, cryptographically proven result: ${result.homeGoals} - ${result.awayGoals}`);
-  await settle(program, { settler: wallet.publicKey, market, proof: result.settleArgs });
+  const settleSignature = await settle(program, { settler: wallet.publicKey, market, proof: result.settleArgs });
   const account = await getMarket(program, market);
   console.log(`      Settled. On-chain outcome: ${JSON.stringify(account.outcome)}`);
+  console.log(`      Verification receipt: https://explorer.solana.com/tx/${settleSignature}?cluster=devnet`);
 
   console.log("[5/6] Claiming the payout...");
   await claim(program, { participant: wallet.publicKey, market, vault, destination: backerAta });

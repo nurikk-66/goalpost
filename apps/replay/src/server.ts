@@ -28,6 +28,10 @@ function sseHeaders(res: http.ServerResponse) {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
+    // apps/web's browser client connects cross-port (Next.js dev server on
+    // :3000, this replay server on :4001) via native EventSource, which is
+    // subject to CORS unlike the SDK's Node-side stream consumption.
+    "Access-Control-Allow-Origin": "*",
   });
 }
 

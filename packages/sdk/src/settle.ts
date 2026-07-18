@@ -28,14 +28,18 @@ export interface SettleParams {
  * Anchor: it's constrained to a constant address in the IDL
  * (`#[account(address = txoracle::TXORACLE_PROGRAM_ID)]`), so the typed
  * client resolves it itself.
+ *
+ * Returns the transaction signature - e.g. for a UI to link to
+ * `https://explorer.solana.com/tx/<signature>?cluster=devnet` as proof the
+ * verification really happened on-chain.
  */
-export async function settle(program: anchor.Program<Goalpost>, params: SettleParams): Promise<void> {
+export async function settle(program: anchor.Program<Goalpost>, params: SettleParams): Promise<string> {
   const { proof } = params;
   const epochDay = epochDayFromTimestampMs(proof.ts.toNumber());
   const dailyScoresMerkleRoots = dailyScoresMerkleRootsPda(epochDay);
 
   try {
-    await program.methods
+    return await program.methods
       .settle(
         proof.ts,
         proof.fixtureSummary,
@@ -74,9 +78,9 @@ export interface ClaimParams {
  * market + participant) and `tokenProgram` is a constant address in the
  * IDL - the typed client resolves both itself.
  */
-export async function claim(program: anchor.Program<Goalpost>, params: ClaimParams): Promise<void> {
+export async function claim(program: anchor.Program<Goalpost>, params: ClaimParams): Promise<string> {
   try {
-    await program.methods
+    return await program.methods
       .claim()
       .accountsPartial({
         participant: params.participant,

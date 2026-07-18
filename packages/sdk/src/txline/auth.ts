@@ -6,7 +6,7 @@ import {
   getAccount,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import axios from "axios";
 import nacl from "tweetnacl";
 import idl from "../generated/txoracle.idl.json";
@@ -45,7 +45,27 @@ export async function authenticateTxLine(
   const weeks = opts.weeks ?? 4;
   const leagues = opts.leagues ?? [];
 
-  const anchorWallet = new anchor.Wallet(wallet);
+  // Built by hand instead of `new anchor.Wallet(wallet)` - that class only
+  // exists in Anchor's Node build (it wraps a raw Keypair via `fs`-style
+  // signing), so importing it as a runtime value breaks bundling for any
+  // consumer of this package that runs in a browser (e.g. apps/web), even
+  // though this function itself is Node-only and never called there.
+  const anchorWallet: anchor.Wallet = {
+    publicKey: wallet.publicKey,
+    payer: wallet,
+    signTransaction: async <T extends Transaction | VersionedTransaction>(tx: T) => {
+      if (tx instanceof VersionedTransaction) tx.sign([wallet]);
+      else tx.sign(wallet);
+      return tx;
+    },
+    signAllTransactions: async <T extends Transaction | VersionedTransaction>(txs: T[]) => {
+      for (const tx of txs) {
+        if (tx instanceof VersionedTransaction) tx.sign([wallet]);
+        else tx.sign(wallet);
+      }
+      return txs;
+    },
+  };
   const provider = new anchor.AnchorProvider(connection, anchorWallet, { commitment: "confirmed" });
   const program = new anchor.Program<Txoracle>(idl as Txoracle, provider);
 
