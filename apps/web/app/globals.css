@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens (docs/DESIGN.md): protocol-grade dark aesthetic - true-black
+ * background, a 3-tier neutral text/hairline system, monospace-dominant
+ * typography. Amber is the one dominant accent; verified-green is reserved
+ * strictly for the settlement/verification signal, never a general UI color.
+ * See docs/DESIGN.md's self-critique for the full reasoning.
+ */
+@theme {
+  --color-gp-bg: #000000;
+  --color-gp-surface: #0c0c0c;
+  --color-gp-surface-raised: #141414;
+  --color-gp-line-soft: #1c1c1c;
+  --color-gp-line: #2a2a2a;
+  --color-gp-line-strong: #3a3a3a;
+  --color-gp-amber: #ffb000;
+  --color-gp-amber-dim: #ffb00033;
+  --color-gp-verified: #2bd97c;
+  --color-gp-danger: #ff5c5c;
+  --color-gp-text: #e9e9e9;
+  --color-gp-text-dim: #b5b5b5;
+  --color-gp-text-faint: #6b6b6b;
+
+  --font-display: var(--font-big-shoulders), sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--color-gp-bg);
+  color: var(--color-gp-text);
+  font-family: var(--font-mono);
+}
+
+/* Tabular numerals everywhere a number can change live - odds, scores, pools. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* The reduced-motion overrides above still let a fragment's *pre-assembled*
+     end state apply instantly - `.gp-fragment` needs to actually start in
+     that end state (no transform/opacity offset) since a 0.01ms transition
+     from a scattered starting position would otherwise flash it visibly. */
+  .gp-fragment {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/*
+ * Signature moment #1 (docs/DESIGN.md "Motion"): the settlement receipt
+ * prints in line-by-line, like a thermal printer, then the VERIFIED stamp
+ * bounces in. Each row gets the same keyframe with an increasing
+ * animation-delay (set inline per-row via style, since the row count/order
+ * is data-driven) - no JS sequencer needed, the receipt's own mount (which
+ * only happens once a market is Settled) is the trigger.
+ */
+@keyframes receipt-row-print {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 0% 0 0);
+    opacity: 1;
+  }
+}
+
+@keyframes stamp-bounce {
+  0% {
+    transform: scale(0) rotate(-8deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15) rotate(-8deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-8deg);
+    opacity: 1;
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-gp-amber-dim);
+  }
+  50% {
+    box-shadow: 0 0 24px 4px var(--color-gp-amber-dim);
+  }
+}
+
+.receipt-panel {
+  animation: glow-pulse 1600ms ease-in-out 900ms 2;
+}
+
+.receipt-row {
+  animation: receipt-row-print 260ms ease-out both;
+}
+
+.receipt-stamp {
+  animation: stamp-bounce 500ms cubic-bezier(0.34, 1.56, 0.64, 1) 950ms both;
+}
+
+/* Ticket-style perforation: semicircle notches cut from the panel's top edge. */
+.receipt-perforation {
+  height: 10px;
+  background-image: radial-gradient(circle at 8px 0, var(--color-gp-bg) 6px, transparent 6.5px);
+  background-size: 16px 10px;
+  background-repeat: repeat-x;
+}
+
+/*
+ * Signature moment #2: football-silhouette background art assembles from
+ * scattered fragments the first time its section scrolls into view
+ * (ScrollAssembleArt toggles `.gp-assembled` on the wrapper via
+ * IntersectionObserver - see components/art/ScrollAssembleArt.tsx). Plain
+ * CSS transition, not a scroll-linked animation library - fires once,
+ * cheap on mobile.
+ */
+.gp-fragment {
+  opacity: 0;
+  transform: translate(var(--gp-fragment-dx, 12px), var(--gp-fragment-dy, 12px)) rotate(var(--gp-fragment-rot, 3deg));
+  transition:
+    transform 700ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 700ms ease-out;
+  transition-delay: var(--gp-fragment-delay, 0ms);
+}
+
+.gp-assembled .gp-fragment {
+  opacity: 1;
+  transform: translate(0, 0) rotate(0deg);
+}

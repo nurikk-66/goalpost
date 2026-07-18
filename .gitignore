@@ -5,6 +5,7 @@ build/
 .next/
 .turbo/
 *.log
+*.tsbuildinfo
 .env
 .env.local
 target/
@@ -12,3 +13,4 @@ target/
 test-ledger/
 scripts/vendor/recon-wallet.json
 scripts/vendor/recon-credentials.json
+scripts/vendor/*-wallet.json
