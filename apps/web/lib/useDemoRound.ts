@@ -15,11 +15,13 @@ import {
   marketPda,
   type OutcomeArg,
 } from "@goalpost/sdk";
-import { createDemoMint, ensureFundedAta } from "@/lib/onchain";
+import { createDemoMint, ensureFundedAta, DEMO_MINT_DECIMALS } from "@/lib/onchain";
 import { getBundledResult } from "@/lib/proof";
 
 const LOCK_TIME_BUFFER_SECONDS = 60;
-const DEMO_STAKE = 1_000_000; // 1.00 token at 6 decimals
+export const MIN_STAKE_DISPLAY = 0.1;
+export const MAX_STAKE_DISPLAY = 100;
+export const DEFAULT_STAKE_DISPLAY = 1;
 
 interface RoundState {
   marketType: number;
@@ -75,14 +77,15 @@ export function useDemoRound(fixtureId: number) {
   }, [program, wallet, connection, fixtureId]);
 
   const joinRound = useCallback(
-    async (outcome: OutcomeArg) => {
+    async (outcome: OutcomeArg, stakeDisplay: number) => {
       if (!program || !wallet.publicKey || !round) throw new Error("No active round");
-      const ata = await ensureFundedAta(connection, wallet, round.mint, wallet.publicKey, DEMO_STAKE);
+      const amount = Math.round(stakeDisplay * 10 ** DEMO_MINT_DECIMALS);
+      const ata = await ensureFundedAta(connection, wallet, round.mint, wallet.publicKey, amount);
       const { signature } = await sdkJoin(program, {
         participant: wallet.publicKey,
         market: round.market,
         outcome,
-        amount: DEMO_STAKE,
+        amount,
         participantTokenAccount: ata,
         vault: round.vault,
       });

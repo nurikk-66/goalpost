@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { SolanaProvider } from "@/components/providers/SolanaProvider";
+import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
 
 // Self-hosted rather than next/font/google: both families are variable fonts
@@ -38,7 +39,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${bigShoulders.variable} ${plexMono.variable}`}>
       <body>
-        <SolanaProvider>{children}</SolanaProvider>
+        <SolanaProvider>
+          <SiteHeader />
+          {children}
+        </SolanaProvider>
       </body>
     </html>
   );

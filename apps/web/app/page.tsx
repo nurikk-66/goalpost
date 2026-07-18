@@ -13,10 +13,10 @@ export default function HomePage() {
       {/* Football-silhouette line-art, docs/DESIGN.md "Imagery" - decorative,
           bleeding off-canvas at section edges, never over interactive
           content. Low-contrast on purpose (atmosphere, not focus). */}
-      <ScrollAssembleArt className="pointer-events-none absolute -right-16 top-0 h-72 w-72 opacity-[0.08] sm:-right-24 sm:h-96 sm:w-96">
+      <ScrollAssembleArt className="pointer-events-none absolute -right-16 top-0 h-72 w-72 opacity-[0.14] sm:-right-24 sm:h-96 sm:w-96">
         <BicycleKick />
       </ScrollAssembleArt>
-      <ScrollAssembleArt className="pointer-events-none absolute -left-20 bottom-0 h-64 w-64 opacity-[0.06] sm:-left-28 sm:h-80 sm:w-80">
+      <ScrollAssembleArt className="pointer-events-none absolute -left-20 bottom-0 h-64 w-64 opacity-[0.11] sm:-left-28 sm:h-80 sm:w-80">
         <CelebrationPose />
       </ScrollAssembleArt>
 

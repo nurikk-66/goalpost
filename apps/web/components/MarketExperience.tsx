@@ -6,6 +6,7 @@ import type { OutcomeArg } from "@goalpost/sdk";
 import type { DemoFixture } from "@/lib/fixtures-data";
 import { useDemoRound } from "@/lib/useDemoRound";
 import { useMarketAccount } from "@/lib/useMarketAccount";
+import { usePositions } from "@/lib/usePositions";
 import { useReplayChannel } from "@/lib/replayStream";
 import { OddsRecordSchema, ScoreRecordSchema } from "@/lib/zodSchemas";
 import { useTxState } from "@/lib/useTxState";
@@ -32,6 +33,7 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
   const { publicKey } = useWallet();
   const { program, round, startRound, joinRound, lockRound, settleRound, claimRound } = useDemoRound(fixture.fixtureId);
   const { account, error: accountError, refetch: refetchAccount } = useMarketAccount(program, round?.market);
+  const { positions, refetch: refetchPositions } = usePositions(program, round?.market);
   const startTx = useTxState();
   const [settleSignature, setSettleSignature] = useState<string | undefined>(undefined);
 
@@ -40,12 +42,12 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
   // action, the pool card would keep showing stale (often all-zero) totals
   // even after a confirmed join/lock/settle/claim, which reads as broken.
   const handleJoin = useCallback(
-    async (outcome: OutcomeArg) => {
-      const signature = await joinRound(outcome);
-      await refetchAccount();
+    async (outcome: OutcomeArg, stake: number) => {
+      const signature = await joinRound(outcome, stake);
+      await Promise.all([refetchAccount(), refetchPositions()]);
       return signature;
     },
-    [joinRound, refetchAccount]
+    [joinRound, refetchAccount, refetchPositions]
   );
   const handleLock = useCallback(async () => {
     const signature = await lockRound();
@@ -59,9 +61,9 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
   }, [settleRound, refetchAccount]);
   const handleClaim = useCallback(async () => {
     const signature = await claimRound();
-    await refetchAccount();
+    await Promise.all([refetchAccount(), refetchPositions()]);
     return signature;
-  }, [claimRound, refetchAccount]);
+  }, [claimRound, refetchAccount, refetchPositions]);
 
   const scores = useReplayChannel("scores", fixture.fixtureId, ScoreRecordSchema);
   const odds = useReplayChannel("odds", fixture.fixtureId, OddsRecordSchema);
@@ -87,10 +89,10 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
 
       {/* Football-silhouette line-art, docs/DESIGN.md "Imagery" - decorative
           only, behind the interactive column, never over it. */}
-      <ScrollAssembleArt className="pointer-events-none absolute -left-20 top-24 h-72 w-72 opacity-[0.06] sm:-left-28 sm:h-96 sm:w-96">
+      <ScrollAssembleArt className="pointer-events-none absolute -left-20 top-24 h-72 w-72 opacity-[0.11] sm:-left-28 sm:h-96 sm:w-96">
         <SprintingDribbler />
       </ScrollAssembleArt>
-      <ScrollAssembleArt className="pointer-events-none absolute -right-16 bottom-8 h-64 w-64 opacity-[0.06] sm:-right-24 sm:h-80 sm:w-80">
+      <ScrollAssembleArt className="pointer-events-none absolute -right-16 bottom-8 h-64 w-64 opacity-[0.11] sm:-right-24 sm:h-80 sm:w-80">
         <GoalkeeperDive />
       </ScrollAssembleArt>
 
@@ -140,7 +142,7 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
 
         {round && account && (
           <>
-            <MarketPoolCard account={account} />
+            <MarketPoolCard account={account} positions={positions} walletPublicKey={publicKey ?? undefined} />
 
             {"open" in account.status && <JoinPanel onJoin={handleJoin} />}
 

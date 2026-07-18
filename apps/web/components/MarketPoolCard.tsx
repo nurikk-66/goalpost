@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { PublicKey } from "@solana/web3.js";
 import type { MarketAccountData } from "@/lib/useMarketAccount";
+import type { PositionEntry } from "@/lib/usePositions";
 import { formatTokenAmount, formatCountdown } from "@/lib/format";
 
 function statusLabel(status: MarketAccountData["status"]): string {
@@ -12,7 +14,38 @@ function statusLabel(status: MarketAccountData["status"]): string {
   return "Unknown";
 }
 
-export function MarketPoolCard({ account }: { account: MarketAccountData }) {
+function outcomeLabel(outcome: PositionEntry["account"]["outcome"]): "Home" | "Draw" | "Away" {
+  if ("home" in outcome) return "Home";
+  if ("draw" in outcome) return "Draw";
+  return "Away";
+}
+
+/** "You're backing Home. 2 others on Home, 1 on Away." - derived entirely
+ * from the enumerated Position accounts (see usePositions.ts), since the
+ * Market account itself only tracks an aggregate participantCount. */
+function ParticipantsBreakdown({ positions, walletPublicKey }: { positions: PositionEntry[]; walletPublicKey?: PublicKey }) {
+  if (positions.length === 0) return null;
+
+  const own = walletPublicKey ? positions.find((p) => p.account.participant.equals(walletPublicKey)) : undefined;
+  const others = own ? positions.filter((p) => p.publicKey.toBase58() !== own.publicKey.toBase58()) : positions;
+
+  const counts = { Home: 0, Draw: 0, Away: 0 };
+  for (const p of others) counts[outcomeLabel(p.account.outcome)]++;
+
+  const summary = (["Home", "Draw", "Away"] as const)
+    .filter((label) => counts[label] > 0)
+    .map((label) => `${counts[label]} on ${label}`)
+    .join(", ");
+
+  return (
+    <p className="mt-2 text-center font-mono text-[11px] text-gp-text-faint">
+      {own && <span className="text-gp-amber">You&apos;re backing {outcomeLabel(own.account.outcome)}. </span>}
+      {summary ? summary : own ? "No one else has joined yet." : "Nobody has joined yet."}
+    </p>
+  );
+}
+
+export function MarketPoolCard({ account, positions = [], walletPublicKey }: { account: MarketAccountData; positions?: PositionEntry[]; walletPublicKey?: PublicKey }) {
   const [now, setNow] = useState(() => Date.now());
   const isOpen = "open" in account.status;
 
@@ -55,6 +88,7 @@ export function MarketPoolCard({ account }: { account: MarketAccountData }) {
           </>
         )}
       </p>
+      <ParticipantsBreakdown positions={positions} walletPublicKey={walletPublicKey} />
     </div>
   );
 }
