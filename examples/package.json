@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "tsx quickstart.ts"
+    "start": "tsx quickstart.ts",
+    "two-wallet": "tsx two-wallet-demo.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
