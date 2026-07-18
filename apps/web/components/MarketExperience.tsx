@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import type { OutcomeArg } from "@goalpost/sdk";
 import type { DemoFixture } from "@/lib/fixtures-data";
 import { useDemoRound } from "@/lib/useDemoRound";
 import { useMarketAccount } from "@/lib/useMarketAccount";
@@ -30,9 +31,37 @@ import { SprintingDribbler, GoalkeeperDive } from "@/components/art/FootballFigu
 export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
   const { publicKey } = useWallet();
   const { program, round, startRound, joinRound, lockRound, settleRound, claimRound } = useDemoRound(fixture.fixtureId);
-  const { account, error: accountError } = useMarketAccount(program, round?.market);
+  const { account, error: accountError, refetch: refetchAccount } = useMarketAccount(program, round?.market);
   const startTx = useTxState();
   const [settleSignature, setSettleSignature] = useState<string | undefined>(undefined);
+
+  // The public devnet RPC doesn't reliably push accountSubscribe updates
+  // (see useMarketAccount.ts) - without an explicit refetch after each
+  // action, the pool card would keep showing stale (often all-zero) totals
+  // even after a confirmed join/lock/settle/claim, which reads as broken.
+  const handleJoin = useCallback(
+    async (outcome: OutcomeArg) => {
+      const signature = await joinRound(outcome);
+      await refetchAccount();
+      return signature;
+    },
+    [joinRound, refetchAccount]
+  );
+  const handleLock = useCallback(async () => {
+    const signature = await lockRound();
+    await refetchAccount();
+    return signature;
+  }, [lockRound, refetchAccount]);
+  const handleSettle = useCallback(async () => {
+    const signature = await settleRound();
+    await refetchAccount();
+    return signature;
+  }, [settleRound, refetchAccount]);
+  const handleClaim = useCallback(async () => {
+    const signature = await claimRound();
+    await refetchAccount();
+    return signature;
+  }, [claimRound, refetchAccount]);
 
   const scores = useReplayChannel("scores", fixture.fixtureId, ScoreRecordSchema);
   const odds = useReplayChannel("odds", fixture.fixtureId, OddsRecordSchema);
@@ -113,14 +142,14 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
           <>
             <MarketPoolCard account={account} />
 
-            {"open" in account.status && <JoinPanel onJoin={joinRound} />}
+            {"open" in account.status && <JoinPanel onJoin={handleJoin} />}
 
             {("open" in account.status || "locked" in account.status) && (
-              <LockSettleControls account={account} onLock={lockRound} onSettle={settleRound} onSettled={setSettleSignature} />
+              <LockSettleControls account={account} onLock={handleLock} onSettle={handleSettle} onSettled={setSettleSignature} />
             )}
 
             {("settled" in account.status || "claimed" in account.status) && !("claimed" in account.status) && (
-              <ClaimPanel onClaim={claimRound} />
+              <ClaimPanel onClaim={handleClaim} />
             )}
 
             {("settled" in account.status || "claimed" in account.status) && settleSignature && (

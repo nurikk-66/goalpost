@@ -46,11 +46,15 @@ export function MarketPoolCard({ account }: { account: MarketAccountData }) {
         </div>
       </div>
 
-      {isOpen && (
-        <p className="tabular mt-3 text-center font-mono text-xs text-gp-text-dim">
-          Locks in <span className="text-gp-amber">{formatCountdown(account.lockTime.toNumber(), now)}</span>
-        </p>
-      )}
+      <p className="tabular mt-3 text-center font-mono text-xs text-gp-text-dim">
+        {account.participantCount} {account.participantCount === 1 ? "participant" : "participants"}
+        {isOpen && (
+          <>
+            {" · locks in "}
+            <span className="text-gp-amber">{formatCountdown(account.lockTime.toNumber(), now)}</span>
+          </>
+        )}
+      </p>
     </div>
   );
 }
