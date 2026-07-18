@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { OutcomeArg } from "@goalpost/sdk";
 import type { DemoFixture } from "@/lib/fixtures-data";
@@ -10,7 +10,9 @@ import { usePositions } from "@/lib/usePositions";
 import { useReplayChannel } from "@/lib/replayStream";
 import { OddsRecordSchema, ScoreRecordSchema } from "@/lib/zodSchemas";
 import { useTxState } from "@/lib/useTxState";
+import { useMarketContext } from "@/lib/marketContext";
 import { getBundledResult } from "@/lib/proof";
+import { formatTokenAmount } from "@/lib/format";
 import { ScoreboardHeader } from "@/components/ScoreboardHeader";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { MarketPanel } from "@/components/MarketPanel";
@@ -82,6 +84,18 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
 
   const bundledResult = getBundledResult();
 
+  const { setTicker } = useMarketContext();
+  useEffect(() => {
+    setTicker({
+      fixtureLabel: `${fixture.participant1} vs ${fixture.participant2}`,
+      score: liveScore ? `${liveScore.home}–${liveScore.away}` : "–:–",
+      homeWinPct: homeImpliedProbability.length ? homeImpliedProbability[homeImpliedProbability.length - 1].toFixed(1) : null,
+      poolTotal: account ? formatTokenAmount(account.totalHome.add(account.totalDraw).add(account.totalAway)) : "—",
+      connectionLabel: scores.status === "live" ? "Replay Live" : scores.status === "reconnecting" ? "Reconnecting" : "Connecting",
+    });
+    return () => setTicker(null);
+  }, [setTicker, fixture, liveScore, homeImpliedProbability, account, scores.status]);
+
   return (
     <div className="relative mx-auto min-h-screen max-w-3xl overflow-hidden pb-16">
       <ScoreboardHeader fixture={fixture} liveScore={liveScore} status={scores.status} />
@@ -141,7 +155,7 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
 
         {round && account && (
           <>
-            <MarketPanel account={account} positions={positions} walletPublicKey={publicKey ?? undefined} onJoin={handleJoin} />
+            <MarketPanel fixture={fixture} account={account} positions={positions} walletPublicKey={publicKey ?? undefined} onJoin={handleJoin} />
 
             {("open" in account.status || "locked" in account.status) && (
               <LockSettleControls account={account} onLock={handleLock} onSettle={handleSettle} onSettled={setSettleSignature} />

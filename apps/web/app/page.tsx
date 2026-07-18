@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FIXTURES } from "@/lib/fixtures-data";
+import { teamFlag } from "@/lib/teamFlags";
 import { ScrollAssembleArt } from "@/components/art/ScrollAssembleArt";
 import { BicycleKick, CelebrationPose } from "@/components/art/FootballFigures";
 
@@ -53,7 +54,8 @@ export default function HomePage() {
                       {fixture.competition} · #{fixture.fixtureId}
                     </p>
                     <p className="font-mono text-lg font-bold text-gp-text sm:text-xl">
-                      {fixture.participant1} <span className="text-gp-text-faint">vs</span> {fixture.participant2}
+                      {teamFlag(fixture.participant1)} {fixture.participant1} <span className="text-gp-text-faint">vs</span>{" "}
+                      {teamFlag(fixture.participant2)} {fixture.participant2}
                     </p>
                   </div>
                   {fixture.interactive ? (

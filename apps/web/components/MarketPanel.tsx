@@ -6,16 +6,21 @@ import type BN from "bn.js";
 import type { OutcomeArg } from "@goalpost/sdk";
 import type { MarketAccountData } from "@/lib/useMarketAccount";
 import type { PositionEntry } from "@/lib/usePositions";
+import type { DemoFixture } from "@/lib/fixtures-data";
 import { formatTokenAmount, formatCountdown, outcomeLabel } from "@/lib/format";
+import { teamFlag } from "@/lib/teamFlags";
 import { useTxState } from "@/lib/useTxState";
+import { useMarketContext } from "@/lib/marketContext";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { MIN_STAKE_DISPLAY, MAX_STAKE_DISPLAY, DEFAULT_STAKE_DISPLAY } from "@/lib/useDemoRound";
 
-const OUTCOMES: { value: OutcomeArg; label: "Home" | "Draw" | "Away" }[] = [
-  { value: "home", label: "Home" },
-  { value: "draw", label: "Draw" },
-  { value: "away", label: "Away" },
-];
+function outcomeRows(fixture: DemoFixture): { value: OutcomeArg; label: "Home" | "Draw" | "Away"; display: string }[] {
+  return [
+    { value: "home", label: "Home", display: `${teamFlag(fixture.participant1)} ${fixture.participant1}` },
+    { value: "draw", label: "Draw", display: "Draw" },
+    { value: "away", label: "Away", display: `${teamFlag(fixture.participant2)} ${fixture.participant2}` },
+  ];
+}
 
 function statusLabel(status: MarketAccountData["status"]): string {
   if ("open" in status) return "Open";
@@ -55,11 +60,13 @@ function poolPercent(account: MarketAccountData, outcome: OutcomeArg): string | 
  * layout change, not a data change.
  */
 export function MarketPanel({
+  fixture,
   account,
   positions,
   walletPublicKey,
   onJoin,
 }: {
+  fixture: DemoFixture;
   account: MarketAccountData;
   positions: PositionEntry[];
   walletPublicKey?: PublicKey;
@@ -69,8 +76,10 @@ export function MarketPanel({
   const [selected, setSelected] = useState<OutcomeArg>("home");
   const [stakeInput, setStakeInput] = useState(String(DEFAULT_STAKE_DISPLAY));
   const { state, run } = useTxState();
+  const { setPosition } = useMarketContext();
 
   const isOpen = "open" in account.status;
+  const rows = outcomeRows(fixture);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -81,6 +90,22 @@ export function MarketPanel({
   const lockTimePassed = now / 1000 >= account.lockTime.toNumber();
   const canJoin = isOpen && !lockTimePassed && !myPosition;
   const busy = state.status === "signing" || state.status === "confirming";
+
+  // Feeds the persistent right-side "your position at a glance" panel
+  // (app/layout.tsx's shell), which has no other way to see fixture-scoped
+  // position data since it lives above this page in the tree.
+  useEffect(() => {
+    if (!myPosition) {
+      setPosition(null);
+      return;
+    }
+    setPosition({
+      outcome: outcomeLabel(myPosition.account.outcome),
+      stake: formatTokenAmount(myPosition.account.amount),
+      nextStep: nextStepLabel(account.status),
+    });
+    return () => setPosition(null);
+  }, [myPosition, account.status, setPosition]);
 
   const stake = Number(stakeInput);
   const stakeValid = Number.isFinite(stake) && stake >= MIN_STAKE_DISPLAY && stake <= MAX_STAKE_DISPLAY;
@@ -103,7 +128,7 @@ export function MarketPanel({
       </div>
 
       <div className="tabular mt-3 divide-y divide-gp-line-soft">
-        {OUTCOMES.map(({ value, label }) => {
+        {rows.map(({ value, label, display }) => {
           const isMine = Boolean(myPosition) && outcomeLabel(myPosition!.account.outcome) === label;
           const isSelected = canJoin && selected === value;
           const pct = poolPercent(account, value);
@@ -113,11 +138,11 @@ export function MarketPanel({
               type="button"
               onClick={canJoin ? () => setSelected(value) : undefined}
               disabled={!canJoin}
-              className={`flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors ${
+              className={`flex w-full items-center justify-between gap-3 border-l-2 py-2.5 pl-2 text-left transition-colors ${
                 canJoin ? "hover:bg-gp-surface-raised" : "cursor-default"
-              } ${isSelected ? "bg-gp-surface-raised" : ""}`}
+              } ${isSelected || isMine ? "border-gp-amber bg-gp-surface-raised" : "border-transparent"}`}
             >
-              <span className={`font-mono text-sm font-semibold ${isMine ? "text-gp-amber" : "text-gp-text"}`}>{label}</span>
+              <span className={`font-mono text-sm font-semibold ${isMine ? "text-gp-amber" : "text-gp-text"}`}>{display}</span>
               <span className="flex items-center gap-2">
                 <span className="text-right leading-tight">
                   <span className="block font-mono text-sm font-bold text-gp-text">{pct !== null ? `${pct}%` : "--"}</span>
@@ -181,7 +206,7 @@ export function MarketPanel({
               ? "Confirm in wallet…"
               : state.status === "confirming"
                 ? "Confirming…"
-                : `Join with ${stakeValid ? stake.toFixed(2) : "—"} tokens backing ${OUTCOMES.find((o) => o.value === selected)?.label}`}
+                : `Join with ${stakeValid ? stake.toFixed(2) : "—"} tokens backing ${rows.find((o) => o.value === selected)?.label}`}
           </button>
           {state.status === "failed" && <ErrorBanner message={state.message} onRetry={() => run(() => onJoin(selected, stake))} />}
         </div>
