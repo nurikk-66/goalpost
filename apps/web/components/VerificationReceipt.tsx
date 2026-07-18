@@ -39,8 +39,14 @@ export function VerificationReceipt({
   eventStatRoot: number[];
   settleSignature: string;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState<"root" | "tx" | null>(null);
   const rootHex = bytesToHex(eventStatRoot);
+
+  function copy(field: "root" | "tx", value: string) {
+    void navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField((f) => (f === field ? null : f)), 1500);
+  }
 
   return (
     <div className="receipt-panel relative border border-gp-amber/30 bg-gp-surface-raised px-5 pb-5 pt-2 font-mono text-gp-text">
@@ -67,16 +73,8 @@ export function VerificationReceipt({
           delay={4}
           label="Merkle root"
           value={
-            <button
-              onClick={() => {
-                void navigator.clipboard.writeText(rootHex);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              className="underline decoration-dotted hover:text-gp-amber"
-              title={rootHex}
-            >
-              {copied ? "copied" : truncateHex(rootHex)}
+            <button onClick={() => copy("root", rootHex)} className="underline decoration-dotted hover:text-gp-amber" title={rootHex}>
+              {copiedField === "root" ? "copied" : truncateHex(rootHex)}
             </button>
           }
         />
@@ -84,14 +82,24 @@ export function VerificationReceipt({
           delay={5}
           label="Settle tx"
           value={
-            <a
-              href={`https://explorer.solana.com/tx/${settleSignature}?cluster=devnet`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-gp-amber underline decoration-dotted hover:opacity-80"
-            >
-              {shortAddress(settleSignature)} ↗
-            </a>
+            <span className="inline-flex items-center gap-2">
+              <a
+                href={`https://explorer.solana.com/tx/${settleSignature}?cluster=devnet`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-gp-amber underline decoration-dotted hover:opacity-80"
+              >
+                {shortAddress(settleSignature)} ↗
+              </a>
+              <button
+                onClick={() => copy("tx", settleSignature)}
+                title="Copy full transaction signature"
+                aria-label="Copy full transaction signature"
+                className="text-gp-text-faint hover:text-gp-amber"
+              >
+                {copiedField === "tx" ? "copied" : "copy"}
+              </button>
+            </span>
           }
         />
       </dl>

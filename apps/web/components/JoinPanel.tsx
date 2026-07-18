@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { OutcomeArg } from "@goalpost/sdk";
 import { useTxState } from "@/lib/useTxState";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -12,23 +12,43 @@ const OPTIONS: { value: OutcomeArg; label: string }[] = [
   { value: "away", label: "Away" },
 ];
 
-export function JoinPanel({ onJoin }: { onJoin: (outcome: OutcomeArg, stake: number) => Promise<string> }) {
+export function JoinPanel({
+  onJoin,
+  lockTime,
+  isFirst,
+}: {
+  onJoin: (outcome: OutcomeArg, stake: number) => Promise<string>;
+  /** Unix seconds - hides the form once passed, mirroring join.rs's own on-chain check (see programs/goalpost/src/instructions/join.rs), so a doomed tx never gets a wallet signature wasted on it. */
+  lockTime: number;
+  isFirst: boolean;
+}) {
   const [outcome, setOutcome] = useState<OutcomeArg>("home");
   const [stakeInput, setStakeInput] = useState(String(DEFAULT_STAKE_DISPLAY));
+  const [now, setNow] = useState(() => Date.now());
   const { state, run } = useTxState();
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const stake = Number(stakeInput);
   const stakeValid = Number.isFinite(stake) && stake >= MIN_STAKE_DISPLAY && stake <= MAX_STAKE_DISPLAY;
-
-  if (state.status === "confirmed") {
-    return <p className="border border-gp-verified/40 bg-gp-verified/10 px-4 py-3 text-sm text-gp-verified">Joined, backing {outcome}. {stake.toFixed(2)} demo tokens staked.</p>;
-  }
-
   const busy = state.status === "signing" || state.status === "confirming";
+
+  if (now / 1000 >= lockTime) {
+    return (
+      <p className="border border-gp-line bg-gp-surface px-5 py-4 text-sm text-gp-text-dim">
+        Lock time has passed - waiting for someone to lock this market. Joining is no longer possible.
+      </p>
+    );
+  }
 
   return (
     <div className="border border-gp-line bg-gp-surface px-5 py-4">
-      <p className="mb-3 font-mono text-[11px] tracking-[0.2em] text-gp-text-dim uppercase">Back an outcome</p>
+      <p className="mb-3 font-mono text-[11px] tracking-[0.2em] text-gp-text-dim uppercase">
+        {isFirst ? "Be the first to back a side" : "Back an outcome"}
+      </p>
       <div className="mb-3 flex gap-2">
         {OPTIONS.map((opt) => (
           <button

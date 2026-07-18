@@ -2,6 +2,12 @@ import type BN from "bn.js";
 
 const DEMO_MINT_DECIMALS = 6;
 
+export function outcomeLabel(outcome: { home?: unknown; draw?: unknown; away?: unknown }): "Home" | "Draw" | "Away" {
+  if ("home" in outcome) return "Home";
+  if ("draw" in outcome) return "Draw";
+  return "Away";
+}
+
 export function formatTokenAmount(amount: BN, decimals = DEMO_MINT_DECIMALS): string {
   const divisor = Math.pow(10, decimals);
   return (amount.toNumber() / divisor).toFixed(2);

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { PublicKey } from "@solana/web3.js";
 import type { MarketAccountData } from "@/lib/useMarketAccount";
 import type { PositionEntry } from "@/lib/usePositions";
-import { formatTokenAmount, formatCountdown } from "@/lib/format";
+import { formatTokenAmount, formatCountdown, outcomeLabel } from "@/lib/format";
 
 function statusLabel(status: MarketAccountData["status"]): string {
   if ("open" in status) return "Open";
@@ -12,12 +12,6 @@ function statusLabel(status: MarketAccountData["status"]): string {
   if ("settled" in status) return "Settled";
   if ("claimed" in status) return "Claimed";
   return "Unknown";
-}
-
-function outcomeLabel(outcome: PositionEntry["account"]["outcome"]): "Home" | "Draw" | "Away" {
-  if ("home" in outcome) return "Home";
-  if ("draw" in outcome) return "Draw";
-  return "Away";
 }
 
 /** "You're backing Home. 2 others on Home, 1 on Away." - derived entirely

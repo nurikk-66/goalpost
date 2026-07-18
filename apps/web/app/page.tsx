@@ -69,6 +69,9 @@ export default function HomePage() {
                     {fixture.finalScore.home} – {fixture.finalScore.away}
                   </p>
                 )}
+                {!fixture.interactive && (
+                  <p className="mt-2 font-mono text-[11px] text-gp-text-faint">Not yet live for this demo - only fixture #{FIXTURES.find((f) => f.interactive)?.fixtureId} has a recorded replay feed and a captured settlement proof wired up.</p>
+                )}
               </div>
             );
 

@@ -14,6 +14,7 @@ import { getBundledResult } from "@/lib/proof";
 import { ScoreboardHeader } from "@/components/ScoreboardHeader";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { MarketPoolCard } from "@/components/MarketPoolCard";
+import { MyPositionCard } from "@/components/MyPositionCard";
 import { OddsSparkline } from "@/components/OddsSparkline";
 import { JoinPanel } from "@/components/JoinPanel";
 import { LockSettleControls } from "@/components/LockSettleControls";
@@ -82,6 +83,7 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
   );
 
   const bundledResult = getBundledResult();
+  const myPosition = publicKey ? positions.find((p) => p.account.participant.equals(publicKey)) : undefined;
 
   return (
     <div className="relative mx-auto min-h-screen max-w-3xl overflow-hidden pb-16">
@@ -144,7 +146,11 @@ export function MarketExperience({ fixture }: { fixture: DemoFixture }) {
           <>
             <MarketPoolCard account={account} positions={positions} walletPublicKey={publicKey ?? undefined} />
 
-            {"open" in account.status && <JoinPanel onJoin={handleJoin} />}
+            {myPosition && <MyPositionCard position={myPosition} status={account.status} />}
+
+            {"open" in account.status && !myPosition && (
+              <JoinPanel onJoin={handleJoin} lockTime={account.lockTime.toNumber()} isFirst={positions.length === 0} />
+            )}
 
             {("open" in account.status || "locked" in account.status) && (
               <LockSettleControls account={account} onLock={handleLock} onSettle={handleSettle} onSettled={setSettleSignature} />
