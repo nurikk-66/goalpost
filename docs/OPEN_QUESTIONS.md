@@ -28,6 +28,25 @@ Update as answered.
   test check-and-reuse an existing market instead of always trying to
   `init` one; not done given the random-slot fix was sufficient and the
   user set a 2-fix-cycle limit for this session.
+- **Browser-driven 2-wallet click-through wasn't run by the agent itself.**
+  This machine has no Playwright/Chromium available (disk/RAM constraints,
+  decided earlier in Phase 4). For the final submission push, the closest
+  available verification of "two genuinely separate wallets can drive the
+  full lifecycle" is `examples/two-wallet-demo.ts` - a Node script using
+  `@goalpost/sdk` directly against real devnet with two real keypairs
+  (creator + backer), producing real, checkable transaction signatures for
+  every step. This proves the protocol/SDK layer works correctly for two
+  parties; it does **not** prove the browser UI's wallet-adapter
+  integration itself works for a second wallet (e.g. two browser profiles
+  each with their own extension) - that step is still on the user's own
+  manual QA. Safest default given the constraint: be explicit about this
+  gap rather than imply browser automation happened.
+- **Phase 5 (trading agent) and Phase 6 (multi-track packaging) descoped
+  for this submission**, per explicit user instruction during the final
+  ~25-hour push: "ONE excellent submission to the Prediction Markets &
+  Settlement track. No more scope expansion." `docs/README.md`'s roadmap
+  section states this plainly rather than silently dropping it.
+
 ## Answered
 
 - **CI wallet ran out of SOL for the program deploy step (2026-07-14).** Run
