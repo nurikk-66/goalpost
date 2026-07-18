@@ -13,6 +13,34 @@ proof of the final score on-chain and pays out by math, not by permission.
 No admin key, no oracle you have to trust, no "resolver" who could be wrong,
 bribed, or offline. The contract checks the receipt itself.
 
+## Live demo
+
+**https://web-lac-five-79.vercel.app/fixtures/18222446**
+
+Connect a devnet wallet (Phantom or Solflare) and click through create
+market → join → lock → settle → verification receipt → claim — every step
+is a real transaction against real devnet.
+
+**Known limitation of the deployed version**: the live odds/score replay
+stream doesn't work on this URL. `apps/web` starts the replay simulator
+in-process on `localhost:4001` (see `instrumentation-node.ts`), which works
+locally because the browser and the replay server share a machine. On
+Vercel's serverless model each request runs in an isolated, ephemeral
+container, so a judge's own browser can never reach that `localhost:4001`.
+The on-chain flow (create/join/lock/settle/claim) is unaffected — it talks
+directly to Solana devnet and TxLINE from the browser either way. For the
+live-replay experience (odds/score updating in real time as the match
+plays out), run it locally:
+
+```bash
+pnpm --filter @goalpost/web dev
+# open http://localhost:3000/fixtures/18222446
+```
+
+This was a deliberate scope call under the final submission deadline (see
+`docs/OPEN_QUESTIONS.md`) rather than re-architecting the replay server as
+its own always-on service with hours left on the clock.
+
 ## The trustless-verification story
 
 Every prediction market has the same weak point: someone has to say who won,
